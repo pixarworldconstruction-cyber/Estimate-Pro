@@ -4,7 +4,9 @@ import {
   User, 
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  updatePassword,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc } from 'firebase/firestore';
@@ -20,6 +22,8 @@ interface AuthContextType {
   signUp: (email: string, pass: string, name: string, companyId?: string) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (newPass: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -177,6 +181,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
+  const changePassword = async (newPass: string) => {
+    if (user) {
+      await updatePassword(user, newPass);
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  };
+
   const isSuperAdmin = staff?.role === 'super_admin' || user?.email === 'gujjupanchat0@gmail.com';
   const isAdmin = isSuperAdmin || staff?.role === 'admin';
 
@@ -187,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, isAdmin, isSuperAdmin]);
 
   return (
-    <AuthContext.Provider value={{ user, staff, company, loading, isAdmin, isSuperAdmin, signUp, signIn, logout }}>
+    <AuthContext.Provider value={{ user, staff, company, loading, isAdmin, isSuperAdmin, signUp, signIn, logout, changePassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

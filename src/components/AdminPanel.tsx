@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { db, storage } from '../firebase';
-import { doc, setDoc, collection, onSnapshot, deleteDoc, addDoc, query, where } from 'firebase/firestore';
+import { db, storage, firebaseConfig } from '../firebase';
+import { doc, setDoc, collection, onSnapshot, deleteDoc, addDoc, query, where, updateDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail } from 'lucide-react';
 import { Staff, Company } from '../types';
 import { cn } from '../lib/utils';
 
 export default function AdminPanel() {
-  const { company, isAdmin, isSuperAdmin, staff: currentStaff } = useAuth();
+  const { user, company, isAdmin, isSuperAdmin, staff: currentStaff } = useAuth();
   const [settings, setSettings] = useState<Partial<Company>>({
     name: '',
     address: '',
@@ -17,19 +19,90 @@ export default function AdminPanel() {
     tan: '',
     themeColor: '#10b981',
     staffLimit: 5,
+    logoUrl: '',
+    ownerSignature: '',
   });
   const [staff, setStaff] = useState<Staff[]>([]);
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffMobile, setNewStaffMobile] = useState('');
+  const [newStaffAddress, setNewStaffAddress] = useState('');
   const [newStaffRole, setNewStaffRole] = useState<'admin' | 'staff'>('staff');
   const [uploading, setUploading] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [staffPermissions, setStaffPermissions] = useState<string[]>([]);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'staff' | 'super_admin'>('staff');
   const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const { changePassword } = useAuth();
+
+  const features = [
+    { id: 'estimates', name: 'Estimates', icon: FileText },
+    { id: 'clients', name: 'Clients', icon: Users },
+    { id: 'items', name: 'Items', icon: Package },
+    { id: 'reminders', name: 'Reminders', icon: Bell },
+  ];
+
+  useEffect(() => {
+    if (editingStaff) {
+      setStaffPermissions(editingStaff.permissions || features.map(f => f.id));
+      setEditName(editingStaff.name || '');
+      setEditMobile(editingStaff.mobile || '');
+      setEditAddress(editingStaff.address || '');
+      setEditRole(editingStaff.role || 'staff');
+    }
+  }, [editingStaff]);
+
+  const handleUpdateStaff = async () => {
+    if (!editingStaff) return;
+    try {
+      await updateDoc(doc(db, 'staff', editingStaff.id), {
+        name: editName,
+        mobile: editMobile,
+        address: editAddress,
+        role: editRole,
+        permissions: staffPermissions
+      });
+      setEditingStaff(null);
+      setSuccessMessage('Staff details updated!');
+    } catch (error: any) {
+      setErrorMessage('Failed to update staff: ' + error.message);
+    }
+  };
+
+  const getRemainingDays = () => {
+    if (!company?.expiryDate) return 0;
+    const expiry = company.expiryDate.toDate();
+    const today = new Date();
+    const diff = expiry.getTime() - today.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const remainingDays = getRemainingDays();
+  const isTrial = company?.status === 'trial';
+  const showExpiryWarning = isTrial ? remainingDays <= 7 : remainingDays <= 30;
 
   useEffect(() => {
     if (company) {
-      setSettings(company);
+      setSettings({
+        ...company,
+        name: company.name || '',
+        address: company.address || '',
+        gst: company.gst || '',
+        pan: company.pan || '',
+        tan: company.tan || '',
+        logoUrl: company.logoUrl || '',
+        ownerSignature: company.ownerSignature || '',
+        themeColor: company.themeColor || '#10b981',
+        staffLimit: company.staffLimit || 5,
+      });
     }
   }, [company]);
 
@@ -53,14 +126,31 @@ export default function AdminPanel() {
     const file = e.target.files?.[0];
     if (!file || !currentStaff?.companyId) return;
 
+    // Constraints: .jpg, .png, .webp, size < 1MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setErrorMessage('Only .jpg, .png and .webp files are allowed.');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setErrorMessage('File size must be less than 1MB.');
+      return;
+    }
+
     setUploading(true);
+    setSuccessMessage('Uploading logo...');
+    setErrorMessage(null);
     try {
       const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setSettings(prev => ({ ...prev, logoUrl: url }));
-    } catch (error) {
+      // Update Firestore immediately
+      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
+      setSuccessMessage('Logo uploaded successfully!');
+    } catch (error: any) {
       console.error('Upload failed', error);
+      setErrorMessage('Logo upload failed: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -76,8 +166,12 @@ export default function AdminPanel() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setSettings(prev => ({ ...prev, ownerSignature: url }));
-    } catch (error) {
+      // Update Firestore immediately
+      await updateDoc(doc(db, 'companies', currentStaff.companyId), { ownerSignature: url });
+      setSuccessMessage('Signature uploaded successfully!');
+    } catch (error: any) {
       console.error('Upload failed', error);
+      setErrorMessage('Signature upload failed: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -90,17 +184,96 @@ export default function AdminPanel() {
       setErrorMessage('Staff limit reached!');
       return;
     }
-    await addDoc(collection(db, 'staff'), {
-      name: newStaffName,
-      email: newStaffEmail,
-      role: newStaffRole,
-      uid: '', 
-      companyId: currentStaff.companyId
-    });
-    setNewStaffEmail('');
-    setNewStaffName('');
-    setNewStaffRole('staff');
-    setSuccessMessage('Staff member added successfully!');
+    
+    // Check if staff already exists in this company
+    if (staff.some(s => s.email.toLowerCase() === newStaffEmail.toLowerCase())) {
+      setErrorMessage('This email is already added to your staff list.');
+      return;
+    }
+
+    // Generate a temporary password
+    const generatedPass = Math.random().toString(36).slice(-8);
+    setSuccessMessage('Creating staff account...');
+    setErrorMessage(null);
+
+    try {
+      // Create user in Firebase Auth using secondary app instance to avoid logging out admin
+      const secondaryApp = initializeApp(firebaseConfig, 'Secondary');
+      const secondaryAuth = getAuth(secondaryApp);
+      let uid = '';
+      
+      try {
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newStaffEmail, generatedPass);
+        uid = userCredential.user.uid;
+        await signOut(secondaryAuth);
+      } catch (authError: any) {
+        if (authError.code === 'auth/email-already-in-use') {
+          // Email exists in Auth, check if it exists in our staff collection
+          const q = query(collection(db, 'staff'), where('email', '==', newStaffEmail));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            throw new Error('This user is already registered as staff in a company.');
+          }
+          // Not in staff collection, so we can add as pending
+          uid = ''; // Will be linked on first login
+        } else {
+          throw authError;
+        }
+      } finally {
+        await deleteApp(secondaryApp);
+      }
+
+      const staffData = {
+        name: newStaffName,
+        email: newStaffEmail,
+        mobile: newStaffMobile,
+        address: newStaffAddress,
+        role: newStaffRole,
+        uid: uid,
+        companyId: currentStaff.companyId,
+        tempPassword: uid ? generatedPass : '', // Only show temp pass if we created the account
+        permissions: features.map(f => f.id)
+      };
+
+      if (uid) {
+        // Use UID as document ID for better performance and consistency
+        await setDoc(doc(db, 'staff', uid), staffData);
+      } else {
+        // Create a pending record with random ID
+        await addDoc(collection(db, 'staff'), staffData);
+      }
+      
+      setTempPassword(uid ? generatedPass : null);
+      setNewStaffEmail('');
+      setNewStaffName('');
+      setNewStaffMobile('');
+      setNewStaffAddress('');
+      setNewStaffRole('staff');
+      
+      if (uid) {
+        setSuccessMessage('Staff member added successfully! Give them the temporary password.');
+      } else {
+        setSuccessMessage('User already has an account. They have been added to your staff list and can log in with their existing password.');
+      }
+    } catch (error: any) {
+      console.error('Failed to add staff', error);
+      setErrorMessage('Failed to add staff: ' + error.message);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword) return;
+    setChangingPassword(true);
+    try {
+      await changePassword(newPassword);
+      setSuccessMessage('Password changed successfully!');
+      setNewPassword('');
+    } catch (error: any) {
+      setErrorMessage('Failed to change password: ' + error.message);
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleDeleteStaff = async () => {
@@ -120,141 +293,156 @@ export default function AdminPanel() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {company && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
-          <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
-            <Settings className="text-primary" />
-            Company Settings
-          </h2>
-          
-          <form onSubmit={handleSaveSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">Company Name</label>
-              <input
-                type="text"
-                value={settings.name}
-                onChange={e => setSettings(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-                required
-              />
+        <div className={cn(
+          "p-6 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm",
+          showExpiryWarning ? "bg-red-50 border-red-100" : "bg-zinc-900 border-zinc-800 text-white"
+        )}>
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg",
+              showExpiryWarning ? "bg-red-500 text-white" : "bg-primary text-white"
+            )}>
+              <Clock className="w-6 h-6" />
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">Theme Color</label>
-              <div className="flex gap-3">
-                <input
-                  type="color"
-                  value={settings.themeColor}
-                  onChange={e => setSettings(prev => ({ ...prev, themeColor: e.target.value }))}
-                  className="h-10 w-20 rounded-lg cursor-pointer"
-                />
-                <span className="text-zinc-500 self-center font-mono">{settings.themeColor}</span>
+            <div>
+              <div className={cn("text-sm font-medium opacity-70", !showExpiryWarning && "text-zinc-400")}>
+                {isTrial ? 'Trial Period' : 'Subscription Plan'}: <span className="font-bold">{company.planName}</span>
+              </div>
+              <div className={cn("text-2xl font-black", showExpiryWarning ? "text-red-600" : "text-white")}>
+                {isTrial ? `${remainingDays} Days Remaining` : (remainingDays <= 30 ? `${remainingDays} Days Remaining` : 'Active')}
               </div>
             </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-zinc-700">Company Logo</label>
-              <div className="flex items-center gap-4">
-                {settings.logoUrl && (
-                  <img src={settings.logoUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-zinc-200" referrerPolicy="no-referrer" />
-                )}
-                <label className="flex items-center gap-2 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl cursor-pointer transition-all">
-                  <Upload className="w-4 h-4" />
-                  {uploading ? 'Uploading...' : 'Upload Logo'}
-                  <input type="file" className="hidden" onChange={handleLogoUpload} accept="image/*" />
-                </label>
+          </div>
+          <div className="flex items-center gap-3">
+            {company.features.map(f => (
+              <div key={f} className="px-3 py-1 bg-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                {f}
               </div>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-zinc-700">Owner / Sender Signature</label>
-              <div className="flex items-center gap-4">
-                {settings.ownerSignature && (
-                  <img src={settings.ownerSignature} alt="Signature" className="h-16 w-auto rounded-xl object-contain border border-zinc-200 bg-white p-2" referrerPolicy="no-referrer" />
-                )}
-                <label className="flex items-center gap-2 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl cursor-pointer transition-all">
-                  <Upload className="w-4 h-4" />
-                  {uploading ? 'Uploading...' : 'Upload Signature'}
-                  <input type="file" className="hidden" onChange={handleSignatureUpload} accept="image/*" />
-                </label>
-              </div>
-              <p className="text-xs text-zinc-500">This signature will appear on all generated estimates.</p>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-zinc-700">Address</label>
-              <textarea
-                value={settings.address}
-                onChange={e => setSettings(prev => ({ ...prev, address: e.target.value }))}
-                className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none h-24"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">GST Number</label>
-              <input
-                type="text"
-                value={settings.gst}
-                onChange={e => setSettings(prev => ({ ...prev, gst: e.target.value }))}
-                className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">PAN Number</label>
-              <input
-                type="text"
-                value={settings.pan}
-                onChange={e => setSettings(prev => ({ ...prev, pan: e.target.value }))}
-                className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">TAN Number</label>
-              <input
-                type="text"
-                value={settings.tan}
-                onChange={e => setSettings(prev => ({ ...prev, tan: e.target.value }))}
-                className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">Staff Limit (Managed by Super Admin)</label>
-              <div className="w-full px-4 py-2 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-500">
-                {settings.staffLimit} Members
-              </div>
-            </div>
-
-            <div className="md:col-span-2 pt-4">
-              <button
-                type="submit"
-                className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
-              >
-                <Save className="w-5 h-5" />
-                Save Settings
-              </button>
-            </div>
-          </form>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
-        <h2 className="text-2xl font-bold text-zinc-900 mb-4 flex items-center gap-2">
-          <Shield className="text-primary" />
-          Active Features (Package: {company?.planName})
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {company?.features?.map(feature => (
-            <span key={feature} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase tracking-wider">
-              {feature}
-            </span>
-          ))}
-          {(!company?.features || company.features.length === 0) && (
-            <p className="text-zinc-500 italic text-sm">No features enabled. Please contact super admin.</p>
-          )}
+      {company && (
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold text-zinc-900 mb-2">Company Identity</h1>
+            <p className="text-zinc-500">Configure the business details displayed on your estimates.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
+            <div className="space-y-6">
+              <div className="bg-white p-10 rounded-[48px] border border-zinc-100 shadow-sm text-center space-y-6">
+                <div className="relative inline-block">
+                  <div className="w-32 h-32 bg-zinc-900 rounded-[32px] flex items-center justify-center text-white text-5xl font-black shadow-2xl">
+                    {settings.logoUrl ? (
+                      <img src={settings.logoUrl} alt="Logo" className="w-full h-full rounded-[32px] object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      settings.name?.[0] || 'P'
+                    )}
+                  </div>
+                  <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-all">
+                    <Upload size={18} />
+                    <input type="file" className="hidden" onChange={handleLogoUpload} accept="image/*" />
+                  </label>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-zinc-900">{settings.name}</h3>
+                  <div className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Active Workspace</div>
+                </div>
+              </div>
+
+              <div className="bg-primary p-8 rounded-[40px] text-white relative overflow-hidden">
+                <div className="relative z-10">
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6">
+                    <FileText size={24} />
+                  </div>
+                  <h3 className="text-lg font-bold uppercase tracking-widest mb-2">Identity Note</h3>
+                  <p className="text-white/70 text-sm leading-relaxed">
+                    Changes made here will automatically reflect on all new estimates and reports you generate.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-10 rounded-[56px] border border-zinc-100 shadow-sm">
+              <form onSubmit={handleSaveSettings} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3 md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Organization Name</label>
+                    <input
+                      type="text"
+                      value={settings.name}
+                      onChange={e => setSettings(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Public Email</label>
+                    <input
+                      type="email"
+                      value={settings.email || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Contact Number</label>
+                    <input
+                      type="tel"
+                      value={settings.phone || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-3 md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Registered Address</label>
+                    <textarea
+                      value={settings.address}
+                      onChange={e => setSettings(prev => ({ ...prev, address: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all h-32"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">GST Number</label>
+                    <input
+                      type="text"
+                      value={settings.gst}
+                      onChange={e => setSettings(prev => ({ ...prev, gst: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Theme Color</label>
+                    <div className="flex gap-4 items-center px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl">
+                      <input
+                        type="color"
+                        value={settings.themeColor}
+                        onChange={e => setSettings(prev => ({ ...prev, themeColor: e.target.value }))}
+                        className="h-10 w-10 rounded-xl cursor-pointer border-none bg-transparent"
+                      />
+                      <span className="font-mono font-bold text-zinc-500 uppercase">{settings.themeColor}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-zinc-900 text-white py-6 rounded-[32px] text-xl font-black uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-2xl shadow-zinc-900/20"
+                >
+                  Save Identity Changes
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
         <div className="flex items-center justify-between mb-6">
@@ -267,72 +455,255 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        <form onSubmit={handleAddStaff} className="flex flex-wrap gap-4 mb-8">
-          <input
-            type="text"
-            placeholder="Staff Name"
-            value={newStaffName}
-            onChange={e => setNewStaffName(e.target.value)}
-            className="flex-1 min-w-[200px] px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-            required
-          />
-          <input
-            type="email"
-            placeholder="Staff Email"
-            value={newStaffEmail}
-            onChange={e => setNewStaffEmail(e.target.value)}
-            className="flex-1 min-w-[200px] px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-            required
-          />
-          <select
-            value={newStaffRole}
-            onChange={e => setNewStaffRole(e.target.value as 'admin' | 'staff')}
-            className="px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
-          >
-            <option value="staff">Staff Member</option>
-            <option value="admin">Admin</option>
-          </select>
+        <form onSubmit={handleAddStaff} className="space-y-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="Staff Name"
+              value={newStaffName}
+              onChange={e => setNewStaffName(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+              required
+            />
+            <input
+              type="email"
+              placeholder="Staff Email"
+              value={newStaffEmail}
+              onChange={e => setNewStaffEmail(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+              required
+            />
+            <input
+              type="tel"
+              placeholder="Mobile Number"
+              value={newStaffMobile}
+              onChange={e => setNewStaffMobile(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+            />
+            <select
+              value={newStaffRole}
+              onChange={e => setNewStaffRole(e.target.value as 'admin' | 'staff')}
+              className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
+            >
+              <option value="staff">Staff Member</option>
+              <option value="admin">Admin</option>
+            </select>
+            <div className="md:col-span-2">
+              <textarea
+                placeholder="Address"
+                value={newStaffAddress}
+                onChange={e => setNewStaffAddress(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-20"
+              />
+            </div>
+          </div>
           <button
             type="submit"
-            className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-zinc-800 transition-all"
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-zinc-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-zinc-800 transition-all"
           >
             <UserPlus className="w-5 h-5" />
-            Add Staff
+            Add Staff Member
           </button>
         </form>
 
+        {tempPassword && (
+          <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Shield className="text-amber-500 w-5 h-5" />
+              <div>
+                <div className="text-sm font-bold text-amber-900">Temporary Password Generated</div>
+                <div className="text-xs text-amber-700">Please share this with the staff member: <span className="font-mono font-black text-lg ml-2">{tempPassword}</span></div>
+              </div>
+            </div>
+            <button onClick={() => setTempPassword(null)} className="p-2 hover:bg-amber-100 rounded-lg">
+              <X className="w-4 h-4 text-amber-500" />
+            </button>
+          </div>
+        )}
+
         <div className="space-y-3">
-          {staff.map(member => (
-            <div key={member.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-xl border border-zinc-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-200 rounded-full flex items-center justify-center font-bold text-zinc-600">
-                  {member.name[0]}
+          {staff.filter(m => m.uid !== user?.uid).map(member => (
+            <div key={member.id} className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-zinc-200 rounded-full flex items-center justify-center font-bold text-zinc-600 text-lg">
+                    {member.name[0]}
+                  </div>
+                  <div>
+                    <div className="font-bold text-zinc-900">{member.name}</div>
+                    <div className="text-sm text-zinc-500 flex items-center gap-2">
+                      <Mail className="w-3 h-3" />
+                      {member.email}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-bold text-zinc-900">{member.name}</div>
-                  <div className="text-sm text-zinc-500">{member.email}</div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                    member.role === 'admin' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                  )}>
+                    {member.role}
+                  </span>
+                  <button
+                    onClick={() => setEditingStaff(member)}
+                    className="p-2 text-zinc-400 hover:text-primary hover:bg-zinc-100 rounded-lg transition-all"
+                    title="Edit Staff"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  {member.email !== 'gujjupanchat0@gmail.com' && (
+                    <button
+                      onClick={() => setStaffToDelete(member.id)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <span className={cn(
-                  "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-                  member.role === 'admin' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                )}>
-                  {member.role}
-                </span>
-                {member.email !== 'gujjupanchat0@gmail.com' && (
-                  <button
-                    onClick={() => setStaffToDelete(member.id)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-200/50">
+                {member.mobile && (
+                  <div className="flex items-center gap-2 text-sm text-zinc-600">
+                    <Phone className="w-4 h-4 text-primary" />
+                    {member.mobile}
+                  </div>
                 )}
+                {member.address && (
+                  <div className="flex items-center gap-2 text-sm text-zinc-600">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    {member.address}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {features.map(f => {
+                  const hasAccess = member.permissions?.includes(f.id) || member.role === 'admin';
+                  if (!hasAccess) return null;
+                  return (
+                    <div key={f.id} className="flex items-center gap-1 px-2 py-1 bg-white rounded-lg border border-zinc-200 text-[9px] font-bold uppercase tracking-wider text-zinc-500">
+                      <f.icon className="w-3 h-3" />
+                      {f.name}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Edit Staff Modal */}
+      {editingStaff && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white p-8 rounded-3xl max-w-2xl w-full space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-zinc-900">Edit Staff Member</h3>
+              <button onClick={() => setEditingStaff(null)} className="p-2 hover:bg-zinc-100 rounded-full">
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={editMobile}
+                  onChange={e => setEditMobile(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Role</label>
+                <select
+                  value={editRole}
+                  onChange={e => setEditRole(e.target.value as 'admin' | 'staff' | 'super_admin')}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
+                >
+                  <option value="staff">Staff Member</option>
+                  <option value="admin">Admin</option>
+                  {editRole === 'super_admin' && <option value="super_admin">Super Admin</option>}
+                </select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-zinc-700">Address</label>
+                <textarea
+                  value={editAddress}
+                  onChange={e => setEditAddress(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-20"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-zinc-100">
+              <h4 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                <Shield className="text-primary w-4 h-4" />
+                Feature Permissions
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {features.map(feature => (
+                  <label 
+                    key={feature.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                      staffPermissions.includes(feature.id) ? "border-primary bg-primary/5" : "border-zinc-100 hover:border-zinc-200"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <feature.icon className={cn("w-4 h-4", staffPermissions.includes(feature.id) ? "text-primary" : "text-zinc-400")} />
+                      <span className="text-sm font-bold text-zinc-700">{feature.name}</span>
+                    </div>
+                    <input 
+                      type="checkbox"
+                      className="hidden"
+                      checked={staffPermissions.includes(feature.id)}
+                      onChange={() => {
+                        if (staffPermissions.includes(feature.id)) {
+                          setStaffPermissions(prev => prev.filter(id => id !== feature.id));
+                        } else {
+                          setStaffPermissions(prev => [...prev, feature.id]);
+                        }
+                      }}
+                    />
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      staffPermissions.includes(feature.id) ? "border-primary bg-primary text-white" : "border-zinc-200"
+                    )}>
+                      {staffPermissions.includes(feature.id) && <CheckCircle2 className="w-3 h-3" />}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button 
+                onClick={() => setEditingStaff(null)}
+                className="flex-1 px-6 py-3 rounded-xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleUpdateStaff}
+                className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {staffToDelete && (

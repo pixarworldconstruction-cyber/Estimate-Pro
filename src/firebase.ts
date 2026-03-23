@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from "firebase/database";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyDiMAG5zyFT1gkyay_0FYyjGkiy6Se2FnE",
   authDomain: "construction-estimate-pro.firebaseapp.com",
   projectId: "construction-estimate-pro",

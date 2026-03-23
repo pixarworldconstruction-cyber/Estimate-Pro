@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
-import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X } from 'lucide-react';
-import { Client, CRMHistory, Reminder } from '../types';
+import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle } from 'lucide-react';
+import { Client, CRMHistory, Reminder, Estimate } from '../types';
 import ConfirmModal from './ConfirmModal';
-import { cn } from '../lib/utils';
+import { cn, formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
@@ -18,6 +18,7 @@ export default function ClientDirectory() {
   const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const [crmHistory, setCrmHistory] = useState<CRMHistory[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [clientEstimates, setClientEstimates] = useState<Estimate[]>([]);
   const [historyNotes, setHistoryNotes] = useState('');
   const [historyType, setHistoryType] = useState<'chat' | 'call' | 'meeting'>('chat');
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
@@ -79,19 +80,43 @@ export default function ClientDirectory() {
         setReminders(sortedReminders);
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'reminders'));
 
+      const qEstimates = query(
+        collection(db, 'estimates'), 
+        where('companyId', '==', staff.companyId),
+        where('clientId', '==', viewingClient.id)
+      );
+      const unsubEstimates = onSnapshot(qEstimates, (snapshot) => {
+        const sortedEstimates = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Estimate))
+          .sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+          });
+        setClientEstimates(sortedEstimates);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'estimates'));
+
       return () => {
         unsubHistory();
         unsubReminders();
+        unsubEstimates();
       };
     }
   }, [viewingClient, staff]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!staff?.companyId) return;
+    
+    const dataToSave = {
+      ...formData,
+      companyId: staff.companyId
+    };
+
     if (selectedClient) {
-      await updateDoc(doc(db, 'clients', selectedClient.id), formData);
+      await updateDoc(doc(db, 'clients', selectedClient.id), dataToSave);
     } else {
-      await addDoc(collection(db, 'clients'), formData);
+      await addDoc(collection(db, 'clients'), dataToSave);
     }
     setIsModalOpen(false);
     setSelectedClient(null);
@@ -108,9 +133,10 @@ export default function ClientDirectory() {
   };
 
   const handleAddHistory = async () => {
-    if (!viewingClient || !historyNotes.trim()) return;
+    if (!viewingClient || !historyNotes.trim() || !staff?.companyId) return;
     await addDoc(collection(db, 'crmHistory'), {
       clientId: viewingClient.id,
+      companyId: staff.companyId,
       type: historyType,
       notes: historyNotes,
       timestamp: new Date().toISOString()
@@ -165,7 +191,11 @@ export default function ClientDirectory() {
                 <button 
                   onClick={() => {
                     setSelectedClient(client);
-                    setFormData(client);
+                    setFormData({
+                      ...client,
+                      mob2: client.mob2 || '',
+                      details: client.details || ''
+                    });
                     setIsModalOpen(true);
                   }}
                   className="p-2 text-zinc-400 hover:text-primary hover:bg-zinc-50 rounded-lg"
@@ -439,6 +469,41 @@ export default function ClientDirectory() {
                       </div>
                     ))}
                     {reminders.length === 0 && <p className="text-zinc-400 text-sm italic">No reminders set.</p>}
+                  </div>
+                </div>
+
+                <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
+                  <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Estimate History (Revisions)
+                  </h3>
+                  <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                    {clientEstimates.map(e => (
+                      <div key={e.id} className="bg-white p-4 rounded-xl border border-zinc-100 flex justify-between items-center group">
+                        <div>
+                          <div className="font-bold text-zinc-800 flex items-center gap-2">
+                            Estimate #{e.id.slice(-6).toUpperCase()}
+                            {e.status === 'revision' && (
+                              <span className="px-2 py-0.5 bg-zinc-100 text-zinc-500 rounded text-[8px] font-black uppercase">Revision</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-zinc-400">
+                            {format(e.createdAt?.toDate?.() || new Date(e.createdAt), 'dd MMM yyyy')} • {formatCurrency(e.total)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "px-2 py-1 rounded-lg text-[10px] font-bold uppercase",
+                            e.status === 'approved' ? "bg-green-100 text-green-700" : 
+                            e.status === 'rejected' ? "bg-red-100 text-red-700" :
+                            "bg-amber-100 text-amber-700"
+                          )}>
+                            {e.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {clientEstimates.length === 0 && <p className="text-zinc-400 text-sm italic">No estimates generated yet.</p>}
                   </div>
                 </div>
               </div>

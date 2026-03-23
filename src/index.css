@@ -9,3 +9,33 @@
   --primary-color: #10b981;
   --primary-color-light: #10b98120;
 }
+
+@media print {
+  aside, nav, button, .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .bg-zinc-900 {
+    background-color: white !important;
+    color: black !important;
+    border: 1px solid #eee !important;
+    box-shadow: none !important;
+  }
+  .text-white {
+    color: black !important;
+  }
+  .bg-white\/5 {
+    background-color: transparent !important;
+    border: 1px solid #eee !important;
+  }
+  .bg-primary {
+    background-color: #eee !important;
+    color: black !important;
+  }
+  .text-white\/60 {
+    color: #666 !important;
+  }
+}

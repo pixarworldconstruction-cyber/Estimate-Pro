@@ -11,7 +11,17 @@ import {
   Menu, 
   X,
   Construction,
-  ShieldCheck
+  ShieldCheck,
+  User,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Calculator as CalcIcon,
+  Ruler,
+  PenTool,
+  TrendingUp,
+  Database,
+  HardHat
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -22,60 +32,91 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const { logout, isAdmin, isSuperAdmin, company } = useAuth();
+  const { logout, isAdmin, isSuperAdmin, company, staff } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = isSuperAdmin 
     ? [{ id: 'super-admin', label: 'Super Admin', icon: ShieldCheck }]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        ...(company?.features?.includes('clients') ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
-        ...(company?.features?.includes('estimates') ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
-        ...(company?.features?.includes('items') ? [{ id: 'items', label: 'Items', icon: Package }] : []),
-        ...(company?.features?.includes('reminders') ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),
-        ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel (Settings)', icon: Settings }] : []),
+        ...(company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients')) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
+        ...(company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates')) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
+        ...(company?.features?.includes('items') && (isAdmin || staff?.permissions?.includes('items')) ? [{ id: 'items', label: 'Items', icon: Package }] : []),
+        ...(company?.features?.includes('reminders') && (isAdmin || staff?.permissions?.includes('reminders')) ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),
+        ...(company?.features?.includes('insights') ? [{ id: 'insights', label: 'Business Insights', icon: TrendingUp }] : []),
+        ...(company?.features?.includes('sketch') ? [{ id: 'sketch', label: 'Sketch Pad', icon: PenTool }] : []),
+        ...(company?.features?.includes('converter') ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
+        ...(company?.features?.includes('calculator') ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
+        ...(company?.features?.includes('construction-calc') ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
+        ...(isAdmin ? [{ id: 'admin', label: 'Company Identity', icon: Settings }] : []),
+        { id: 'profile', label: 'My Profile', icon: User },
       ];
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-zinc-200">
-        <div className="p-6 flex items-center gap-3 border-bottom border-zinc-100">
+      <aside className={cn(
+        "hidden md:flex flex-col bg-white border-r border-zinc-200 transition-all duration-300 relative h-screen sticky top-0",
+        isCollapsed ? "w-20" : "w-64"
+      )}>
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-white border border-zinc-200 rounded-full flex items-center justify-center z-50 hover:bg-zinc-50 transition-all shadow-sm"
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+
+        <div className={cn("p-6 flex items-center gap-3 border-bottom border-zinc-100", isCollapsed && "justify-center px-0")}>
           {company?.logoUrl ? (
             <img src={company.logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover" referrerPolicy="no-referrer" />
           ) : (
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
               <Construction className="text-white w-5 h-5" />
             </div>
           )}
-          <span className="font-bold text-zinc-900 truncate">{company?.name || (isSuperAdmin ? 'Super Admin' : 'Estimate Pro')}</span>
+          {!isCollapsed && <span className="font-bold text-zinc-900 truncate">{company?.name || (isSuperAdmin ? 'Super Admin' : 'Estimate Pro')}</span>}
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium",
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium group relative",
                 activeTab === item.id 
                   ? "bg-primary text-white shadow-lg shadow-primary/20" 
-                  : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
+                  : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900",
+                isCollapsed && "justify-center px-0"
               )}
             >
-              <item.icon className="w-5 h-5" />
-              {item.label}
+              <item.icon className={cn("w-5 h-5 shrink-0", activeTab === item.id ? "text-white" : "text-zinc-400 group-hover:text-zinc-900")} />
+              {!isCollapsed && <span>{item.label}</span>}
+              {isCollapsed && (
+                <div className="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap z-[100]">
+                  {item.label}
+                </div>
+              )}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-zinc-100">
+        <div className={cn("p-4 border-t border-zinc-100", isCollapsed && "px-0")}>
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium"
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium group relative",
+              isCollapsed && "justify-center px-0"
+            )}
           >
-            <LogOut className="w-5 h-5" />
-            Logout
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!isCollapsed && <span>Logout</span>}
+            {isCollapsed && (
+              <div className="absolute left-full ml-4 px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap z-[100]">
+                Logout
+              </div>
+            )}
           </button>
         </div>
       </aside>

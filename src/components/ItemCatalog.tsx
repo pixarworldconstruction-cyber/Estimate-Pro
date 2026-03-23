@@ -38,10 +38,17 @@ export default function ItemCatalog() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!staff?.companyId) return;
+
+    const dataToSave = {
+      ...formData,
+      companyId: staff.companyId
+    };
+
     if (selectedItem) {
-      await updateDoc(doc(db, 'items', selectedItem.id), formData);
+      await updateDoc(doc(db, 'items', selectedItem.id), dataToSave);
     } else {
-      await addDoc(collection(db, 'items'), formData);
+      await addDoc(collection(db, 'items'), dataToSave);
     }
     setIsModalOpen(false);
     setSelectedItem(null);

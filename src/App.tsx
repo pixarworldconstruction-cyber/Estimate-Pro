@@ -15,6 +15,13 @@ import ItemCatalog from './components/ItemCatalog';
 import Reminders from './components/Reminders';
 import AdminPanel from './components/AdminPanel';
 import SuperAdminPanel from './components/SuperAdminPanel';
+import Profile from './components/Profile';
+import NotificationManager from './components/NotificationManager';
+import UnitConverter from './components/UnitConverter';
+import Calculator from './components/Calculator';
+import SketchPad from './components/SketchPad';
+import BusinessInsights from './components/BusinessInsights';
+import ConstructionCalculator from './components/ConstructionCalculator';
 
 import { ShieldAlert } from 'lucide-react';
 
@@ -74,8 +81,20 @@ function AppContent() {
         return <ItemCatalog />;
       case 'reminders':
         return <Reminders />;
+      case 'insights':
+        return <BusinessInsights />;
+      case 'converter':
+        return <UnitConverter />;
+      case 'calculator':
+        return <Calculator />;
+      case 'sketch':
+        return <SketchPad />;
+      case 'construction-calc':
+        return <ConstructionCalculator />;
       case 'admin':
         return <AdminPanel />;
+      case 'profile':
+        return <Profile />;
       default:
         return <Dashboard setActiveTab={setActiveTab} />;
     }
@@ -83,6 +102,7 @@ function AppContent() {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <NotificationManager />
       {renderContent()}
     </Layout>
   );

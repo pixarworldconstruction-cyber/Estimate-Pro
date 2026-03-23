@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, firebaseConfig } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare } from 'lucide-react';
 import { Company, Staff } from '../types';
 import { format } from 'date-fns';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 
 const AVAILABLE_FEATURES = [
   { id: 'clients', label: 'Clients' },
   { id: 'estimates', label: 'Estimates' },
   { id: 'items', label: 'Items' },
   { id: 'reminders', label: 'Reminders' },
+  { id: 'insights', label: 'Business Insights' },
+  { id: 'sketch', label: 'Sketch Pad' },
+  { id: 'converter', label: 'Unit Conversion' },
+  { id: 'calculator', label: 'Scientific Calculator' },
+  { id: 'construction-calc', label: 'Construction Calculator' },
 ];
 
 export default function SuperAdminPanel() {
@@ -27,6 +34,7 @@ export default function SuperAdminPanel() {
   const [error, setError] = useState('');
   const [lastCreatedPassword, setLastCreatedPassword] = useState('');
   const [companyToDelete, setCompanyToDelete] = useState<string | null>(null);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [successData, setSuccessData] = useState<{ name: string, pass: string } | null>(null);
 
   useEffect(() => {
@@ -56,6 +64,23 @@ export default function SuperAdminPanel() {
       expiryDate.setDate(expiryDate.getDate() + trialDays);
       const tempPassword = generatePassword();
 
+      // 0. Create Auth User using secondary app to avoid signing out super admin
+      const secondaryApp = initializeApp(firebaseConfig, `SecondaryApp_${Date.now()}`);
+      const secondaryAuth = getAuth(secondaryApp);
+      let uid = '';
+      try {
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newAdminEmail, tempPassword);
+        uid = userCredential.user.uid;
+        await signOut(secondaryAuth);
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          throw new Error('This email is already registered in Authentication. Please use a different email.');
+        }
+        throw authErr;
+      } finally {
+        await deleteApp(secondaryApp);
+      }
+
       // 1. Create Company
       const companyRef = await addDoc(collection(db, 'companies'), {
         name: newCompanyName,
@@ -71,12 +96,12 @@ export default function SuperAdminPanel() {
       });
 
       // 2. Create Admin User record
-      await setDoc(doc(db, 'staff', `temp_${Date.now()}`), {
+      await setDoc(doc(db, 'staff', uid), {
         name: newAdminName,
         email: newAdminEmail,
         role: 'admin',
         companyId: companyRef.id,
-        uid: '' // To be linked on signup
+        uid: uid
       });
 
       setLastCreatedPassword(tempPassword);
@@ -106,7 +131,24 @@ export default function SuperAdminPanel() {
   };
 
   const handleUpdateCompany = async (id: string, updates: Partial<Company>) => {
-    await updateDoc(doc(db, 'companies', id), updates);
+    try {
+      await updateDoc(doc(db, 'companies', id), updates);
+      if (editingCompany && editingCompany.id === id) {
+        setEditingCompany({ ...editingCompany, ...updates } as Company);
+      }
+    } catch (err: any) {
+      setError("Failed to update company: " + err.message);
+    }
+  };
+
+  const extendTrial = async (company: Company, days: number) => {
+    const currentExpiry = company.expiryDate ? company.expiryDate.toDate() : new Date();
+    const newExpiry = new Date(currentExpiry);
+    newExpiry.setDate(newExpiry.getDate() + days);
+    await handleUpdateCompany(company.id, { 
+      expiryDate: Timestamp.fromDate(newExpiry),
+      status: 'trial'
+    });
   };
 
   const toggleFeature = (featureId: string) => {
@@ -265,12 +307,22 @@ export default function SuperAdminPanel() {
                     )}
                   </div>
                 </div>
-                <button 
-                  onClick={() => setCompanyToDelete(company.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setEditingCompany(company)}
+                    className="p-2 text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/20 transition-all"
+                    title="Edit Company"
+                  >
+                    <Shield className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => setCompanyToDelete(company.id)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                    title="Delete Company"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -336,6 +388,157 @@ export default function SuperAdminPanel() {
         </div>
       </div>
 
+      {/* Edit Company Modal */}
+      {editingCompany && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl max-w-2xl w-full space-y-6 shadow-2xl my-8">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
+                <Building2 className="text-primary" />
+                Modify Company: {editingCompany.name}
+              </h3>
+              <button 
+                onClick={() => setEditingCompany(null)}
+                className="p-2 hover:bg-zinc-100 rounded-full"
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Company Name</label>
+                <input
+                  type="text"
+                  value={editingCompany.name}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { name: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Staff Limit</label>
+                <input
+                  type="number"
+                  value={editingCompany.staffLimit}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { staffLimit: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Plan Name</label>
+                <select
+                  value={editingCompany.planName}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { planName: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="Free Trial">Free Trial</option>
+                  <option value="Basic">Basic</option>
+                  <option value="Pro">Pro</option>
+                  <option value="Enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Status</label>
+                <select
+                  value={editingCompany.status}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { status: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="active">Active</option>
+                  <option value="trial">Trial</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-bold text-zinc-700 uppercase flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  Expiry & Trial Management
+                </label>
+                <div className="text-sm font-mono font-bold text-primary">
+                  {editingCompany.expiryDate ? format(editingCompany.expiryDate.toDate(), 'PPP') : 'N/A'}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  onClick={() => extendTrial(editingCompany, 7)}
+                  className="px-4 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-bold text-zinc-600 hover:border-primary hover:text-primary transition-all"
+                >
+                  +7 Days Trial
+                </button>
+                <button 
+                  onClick={() => extendTrial(editingCompany, 14)}
+                  className="px-4 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-bold text-zinc-600 hover:border-primary hover:text-primary transition-all"
+                >
+                  +14 Days Trial
+                </button>
+                <button 
+                  onClick={() => extendTrial(editingCompany, 30)}
+                  className="px-4 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-bold text-zinc-600 hover:border-primary hover:text-primary transition-all"
+                >
+                  +30 Days Trial
+                </button>
+                <button 
+                  onClick={() => {
+                    const d = new Date();
+                    d.setFullYear(d.getFullYear() + 1);
+                    handleUpdateCompany(editingCompany.id, { expiryDate: Timestamp.fromDate(d), status: 'active' });
+                  }}
+                  className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all"
+                >
+                  Set 1 Year (Active)
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-sm font-bold text-zinc-700 uppercase flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-primary" />
+                Feature Access Permissions
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {AVAILABLE_FEATURES.map(feature => {
+                  const isActive = editingCompany.features.includes(feature.id);
+                  return (
+                    <button
+                      key={feature.id}
+                      onClick={() => {
+                        const newFeatures = isActive
+                          ? editingCompany.features.filter(id => id !== feature.id)
+                          : [...editingCompany.features, feature.id];
+                        handleUpdateCompany(editingCompany.id, { features: newFeatures });
+                      }}
+                      className={`px-4 py-3 rounded-xl text-xs font-bold text-left transition-all border ${
+                        isActive 
+                          ? "bg-primary/10 border-primary/20 text-primary shadow-sm" 
+                          : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{feature.label}</span>
+                        {isActive && <CheckSquare className="w-3 h-3" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-4 flex gap-3">
+              <button 
+                onClick={() => setEditingCompany(null)}
+                className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {companyToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -393,7 +596,7 @@ export default function SuperAdminPanel() {
               </div>
             </div>
             <p className="text-xs text-zinc-400 text-center">
-              The admin must sign up using their email and this password.
+              The admin can now sign in using their email and this password.
             </p>
             <button 
               onClick={() => setSuccessData(null)}

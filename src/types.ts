@@ -3,6 +3,8 @@ export interface Company {
   name: string;
   logoUrl?: string;
   address?: string;
+  email?: string;
+  phone?: string;
   gst?: string;
   pan?: string;
   tan?: string;
@@ -26,6 +28,9 @@ export interface Staff {
   role: 'super_admin' | 'admin' | 'staff';
   uid: string;
   companyId: string; // Empty for super_admin
+  permissions?: string[]; // List of feature IDs they can access
+  mobile?: string;
+  address?: string;
 }
 
 export interface Client {
@@ -56,6 +61,9 @@ export interface EstimateItem {
   qty: number;
   price: number;
   gst: number;
+  length?: number;
+  width?: number;
+  unit?: string;
 }
 
 export interface Estimate {
@@ -63,12 +71,18 @@ export interface Estimate {
   companyId: string;
   clientId: string;
   items: EstimateItem[];
+  subtotal: number;
+  gstAmount: number;
+  discountPercentage: number;
+  discountAmount: number;
   total: number;
-  status: 'pending' | 'approved' | 'viewed' | 'revision';
+  status: 'pending' | 'approved' | 'rejected' | 'viewed' | 'revision';
   revisions: number;
   terms: string[];
   createdAt: any;
   updatedAt: any;
+  createdBy: string;
+  createdByName: string;
 }
 
 export interface Reminder {
@@ -78,6 +92,9 @@ export interface Reminder {
   title: string;
   status: 'pending' | 'done' | 'renew';
   dueDate: any;
+  createdAt: any;
+  createdBy: string;
+  createdByName: string;
 }
 
 export interface CRMHistory {

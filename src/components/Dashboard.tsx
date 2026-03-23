@@ -24,8 +24,10 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
     totalEstimates: 0,
     pendingEstimates: 0,
     activeReminders: 0,
-    totalRevenue: 0
+    totalRevenue: 0,
+    totalEstimateValue: 0
   });
+  const [timePeriod, setTimePeriod] = useState<'all' | 'month' | 'week' | 'year'>('all');
   const [recentEstimates, setRecentEstimates] = useState<Estimate[]>([]);
   const [upcomingReminders, setUpcomingReminders] = useState<Reminder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -42,18 +44,43 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
 
     const unsubEstimates = onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', staff.companyId)), (snapshot) => {
-      const estimates = snapshot.docs.map(doc => doc.data() as Estimate);
-      const pending = estimates.filter(e => e.status === 'pending').length;
-      const revenue = estimates.filter(e => e.status === 'approved').reduce((acc, e) => acc + e.total, 0);
+      const allEstimates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Estimate));
+      
+      const filterByTime = (estimates: Estimate[]) => {
+        if (timePeriod === 'all') return estimates;
+        const now = new Date();
+        return estimates.filter(e => {
+          const date = e.createdAt?.toDate?.() || new Date(e.createdAt);
+          if (timePeriod === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return date >= weekAgo;
+          }
+          if (timePeriod === 'month') {
+            const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+            return date >= monthAgo;
+          }
+          if (timePeriod === 'year') {
+            const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+            return date >= yearAgo;
+          }
+          return true;
+        });
+      };
+
+      const filteredEstimates = filterByTime(allEstimates);
+      const pending = filteredEstimates.filter(e => e.status === 'pending').length;
+      const revenue = filteredEstimates.filter(e => e.status === 'approved').reduce((acc, e) => acc + (e.total || 0), 0);
+      const totalVal = filteredEstimates.reduce((acc, e) => acc + (e.total || 0), 0);
+
       setStats(prev => ({ 
         ...prev, 
-        totalEstimates: snapshot.size, 
+        totalEstimates: filteredEstimates.length, 
         pendingEstimates: pending,
-        totalRevenue: revenue
+        totalRevenue: revenue,
+        totalEstimateValue: totalVal
       }));
       
-      const sortedEstimates = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Estimate))
+      const sortedEstimates = allEstimates
         .sort((a, b) => {
           const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
           const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
@@ -82,7 +109,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
       unsubEstimates();
       unsubReminders();
     };
-  }, [staff]);
+  }, [staff, timePeriod]);
 
   const statCards = [
     ...(company?.features?.includes('clients') ? [{ label: 'Total Clients', value: stats.totalClients, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' }] : []),
@@ -93,19 +120,37 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-zinc-900">
             Welcome to {company?.name || 'Estimate Pro'}!
           </h1>
           <p className="text-zinc-500">Here's what's happening with your projects today.</p>
         </div>
-        {company?.features?.includes('estimates') && (
-          <div className="hidden md:block bg-white px-6 py-3 rounded-2xl shadow-sm border border-zinc-100">
-            <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Total Revenue (Approved)</div>
-            <div className="text-2xl font-black text-primary">{formatCurrency(stats.totalRevenue)}</div>
-          </div>
-        )}
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <select 
+            value={timePeriod}
+            onChange={(e) => setTimePeriod(e.target.value as any)}
+            className="bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-primary"
+          >
+            <option value="all">All Time</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
+          {company?.features?.includes('estimates') && (
+            <div className="flex gap-4">
+              <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-zinc-100">
+                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Total Revenue (Approved)</div>
+                <div className="text-xl font-black text-primary">{formatCurrency(stats.totalRevenue)}</div>
+              </div>
+              <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-zinc-100">
+                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Total Estimate Value</div>
+                <div className="text-xl font-black text-zinc-900">{formatCurrency(stats.totalEstimateValue)}</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

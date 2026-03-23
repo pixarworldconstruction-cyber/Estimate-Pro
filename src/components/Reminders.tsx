@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { Plus, Search, Trash2, Edit2, Bell, CheckCircle, Clock, Phone, MessageCircle, Calendar, User } from 'lucide-react';
 import { Reminder, Client } from '../types';
 import ConfirmModal from './ConfirmModal';
@@ -16,12 +16,60 @@ export default function Reminders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [formData, setFormData] = useState<Partial<Reminder>>({
     clientId: '',
     title: '',
     status: 'pending',
     dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setNotificationPermission(Notification.permission);
+      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    }
+  }, []);
+
+  const requestPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    }
+  };
+
+  // Check for due reminders every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      reminders.forEach(reminder => {
+        if (reminder.status === 'pending') {
+          const dueDate = new Date(reminder.dueDate);
+          // If due in the last minute
+          if (dueDate <= now && dueDate > new Date(now.getTime() - 60000)) {
+            triggerNotification(reminder);
+          }
+        }
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [reminders]);
+
+  const triggerNotification = (reminder: Reminder) => {
+    if (notificationPermission === 'granted') {
+      const client = clients.find(c => c.id === reminder.clientId);
+      new Notification('Reminder Due!', {
+        body: `${reminder.title} for ${client?.name || 'Client'}`,
+        icon: '/favicon.ico'
+      });
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.error('Error playing sound:', e));
+      }
+    }
+  };
 
   useEffect(() => {
     if (!staff) return;
@@ -56,10 +104,20 @@ export default function Reminders() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!staff?.companyId) return;
+
+    const dataToSave = {
+      ...formData,
+      companyId: staff.companyId,
+      createdAt: selectedReminder ? (selectedReminder.createdAt || serverTimestamp()) : serverTimestamp(),
+      createdBy: selectedReminder ? (selectedReminder.createdBy || staff.uid) : staff.uid,
+      createdByName: selectedReminder ? (selectedReminder.createdByName || staff.name) : staff.name,
+    };
+
     if (selectedReminder) {
-      await updateDoc(doc(db, 'reminders', selectedReminder.id), formData);
+      await updateDoc(doc(db, 'reminders', selectedReminder.id), dataToSave);
     } else {
-      await addDoc(collection(db, 'reminders'), formData);
+      await addDoc(collection(db, 'reminders'), dataToSave);
     }
     setIsModalOpen(false);
     setSelectedReminder(null);
@@ -80,7 +138,33 @@ export default function Reminders() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-bold text-zinc-900">Reminders</h1>
+        <div>
+          <h1 className="text-4xl font-black text-zinc-900 tracking-tight">Reminders</h1>
+          <div className="flex items-center gap-4 mt-2">
+            {notificationPermission !== 'granted' ? (
+              <button 
+                onClick={requestPermission}
+                className="text-xs text-primary font-bold flex items-center gap-1 hover:underline"
+              >
+                <Bell className="w-3 h-3" />
+                Enable Notifications
+              </button>
+            ) : (
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Notifications Active
+                </span>
+                <button 
+                  onClick={() => triggerNotification({ title: 'Test Notification', dueDate: new Date().toISOString() } as Reminder)}
+                  className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline"
+                >
+                  Test Style
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <button
           onClick={() => {
             setSelectedReminder(null);
@@ -138,9 +222,13 @@ export default function Reminders() {
                 {reminder.title}
               </h3>
               
-              <div className="flex items-center gap-2 text-zinc-500 text-sm mb-4">
+              <div className="flex items-center gap-2 text-zinc-500 text-sm mb-1">
                 <User className="w-3 h-3" />
                 {client?.name || 'Unknown Client'}
+              </div>
+
+              <div className="text-[10px] text-zinc-400 mb-4 flex items-center gap-1">
+                <span>By {reminder.createdByName || 'System'}</span>
               </div>
 
               <div className={cn(
