@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "companySettings": {
+      "title": "Company Settings",
+      "description": "Global settings for the company including branding and limits.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "address": { "type": "string" },
+        "gst": { "type": "string" },
+        "pan": { "type": "string" },
+        "tan": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "staffLimit": { "type": "number" },
+        "ownerSignature": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "staff": {
+      "title": "Staff",
+      "description": "Staff members with access to the system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "uid": { "type": "string" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "client": {
+      "title": "Client",
+      "description": "Client information and project details.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "currentAddress": { "type": "string" },
+        "siteAddress": { "type": "string" },
+        "mob1": { "type": "string" },
+        "mob2": { "type": "string" },
+        "projectType": { "type": "string", "enum": ["Turnkey", "Box", "Renovation", "Interior"] },
+        "projectCategory": { "type": "string", "enum": ["Residential", "Commercial", "Industrial"] },
+        "budget": { "type": "number" },
+        "details": { "type": "string" }
+      },
+      "required": ["name", "mob1"]
+    },
+    "item": {
+      "title": "Item",
+      "description": "Catalog of construction items/services.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "gst": { "type": "number" }
+      },
+      "required": ["name", "price"]
+    },
+    "estimate": {
+      "title": "Estimate",
+      "description": "Project estimates generated for clients.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "viewed", "revision"] },
+        "revisions": { "type": "number" },
+        "terms": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "items"]
+    },
+    "reminder": {
+      "title": "Reminder",
+      "description": "Follow-up reminders for clients.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "done", "renew"] },
+        "dueDate": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "title", "dueDate"]
+    },
+    "crmHistory": {
+      "title": "CRM History",
+      "description": "Log of interactions with clients.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "type": { "type": "string", "enum": ["chat", "call", "meeting"] },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "settings/company": { "schema": "companySettings", "description": "Global company settings" },
+    "staff": { "schema": "staff", "description": "Staff members" },
+    "clients": { "schema": "client", "description": "Client directory" },
+    "items": { "schema": "item", "description": "Item catalog" },
+    "estimates": { "schema": "estimate", "description": "Project estimates" },
+    "reminders": { "schema": "reminder", "description": "Client follow-ups" },
+    "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" }
+  }
+}

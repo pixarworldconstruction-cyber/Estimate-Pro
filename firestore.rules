@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.email == "gujjupanchat0@gmail.com";
+    }
+
+    function isStaff() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    }
+
+    function getStaffData() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (isStaff() && getStaffData().role == 'admin');
+    }
+
+    // Companies
+    match /companies/{companyId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == companyId);
+      allow write: if isSuperAdmin() || (isStaff() && getStaffData().companyId == companyId && getStaffData().role == 'admin');
+    }
+
+    // Staff
+    match /staff/{staffId} {
+      // Basic self-access and super admin access
+      allow read: if isAuthenticated() && (request.auth.uid == staffId || isSuperAdmin());
+      
+      // Colleagues can read each other
+      allow read: if isStaff() && resource != null && getStaffData().companyId == resource.data.companyId;
+      
+      allow create: if isAuthenticated() && (request.auth.uid == staffId || isSuperAdmin());
+      allow update: if isSuperAdmin() || (
+        isStaff() && 
+        getStaffData().companyId == resource.data.companyId && 
+        getStaffData().role == 'admin'
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // Clients
+    match /clients/{clientId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Items
+    match /items/{itemId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Estimates
+    match /estimates/{estimateId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Reminders
+    match /reminders/{reminderId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // CRM History
+    match /crmHistory/{historyId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+  }
+}
