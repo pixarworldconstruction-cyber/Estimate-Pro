@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db, firebaseConfig } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap } from 'lucide-react';
 import { Company, Staff } from '../types';
 import { format } from 'date-fns';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { cn } from '../lib/utils';
 
 const AVAILABLE_FEATURES = [
   { id: 'clients', label: 'Clients' },
@@ -17,7 +18,19 @@ const AVAILABLE_FEATURES = [
   { id: 'sketch', label: 'Sketch Pad' },
   { id: 'converter', label: 'Unit Conversion' },
   { id: 'calculator', label: 'Scientific Calculator' },
-  { id: 'construction-calc', label: 'Construction Calculator' },
+  { id: 'construction-calc', label: 'Engineering Toolset' },
+  { id: 'calc-brick', label: 'Brick Work Calc' },
+  { id: 'calc-plaster', label: 'Plastering Calc' },
+  { id: 'calc-paint', label: 'Wall Paint Calc' },
+  { id: 'calc-gypsum', label: 'Gypsum Calc' },
+  { id: 'calc-electrical', label: 'Electrical Calc' },
+  { id: 'calc-flooring', label: 'Flooring/Tile Calc' },
+  { id: 'calc-stone', label: 'Stone Work Calc' },
+  { id: 'calc-doors', label: 'Doors Calc' },
+  { id: 'calc-windows', label: 'Windows Calc' },
+  { id: 'calc-frame', label: 'Frame Work Calc' },
+  { id: 'calc-kitchen', label: 'Kitchen Calc' },
+  { id: 'calc-plumbing', label: 'Plumbing Calc' },
 ];
 
 export default function SuperAdminPanel() {
@@ -360,27 +373,83 @@ export default function SuperAdminPanel() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-500 uppercase">Active Features</label>
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_FEATURES.map(feature => (
-                    <button
-                      key={feature.id}
-                      onClick={() => {
-                        const newFeatures = company.features.includes(feature.id)
-                          ? company.features.filter(id => id !== feature.id)
-                          : [...company.features, feature.id];
-                        handleUpdateCompany(company.id, { features: newFeatures });
-                      }}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                        company.features.includes(feature.id)
-                          ? "bg-primary/10 text-primary border border-primary/20"
-                          : "bg-zinc-200 text-zinc-500 border border-transparent"
-                      }`}
-                    >
-                      {feature.label}
-                    </button>
-                  ))}
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-zinc-500 uppercase">Active Features & Trials</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {AVAILABLE_FEATURES.map(feature => {
+                    const isTrial = company.featureTrials?.[feature.id];
+                    const isActive = company.features.includes(feature.id);
+                    
+                    return (
+                      <div 
+                        key={feature.id}
+                        className={cn(
+                          "p-4 rounded-2xl border transition-all flex flex-col gap-3",
+                          isActive 
+                            ? "bg-primary/5 border-primary/20" 
+                            : "bg-zinc-50 border-zinc-100"
+                        )}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className={cn(
+                            "text-xs font-bold",
+                            isActive ? "text-primary" : "text-zinc-500"
+                          )}>
+                            {feature.label}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const newFeatures = isActive
+                                ? company.features.filter(id => id !== feature.id)
+                                : [...company.features, feature.id];
+                              handleUpdateCompany(company.id, { features: newFeatures });
+                            }}
+                            className={cn(
+                              "w-10 h-5 rounded-full relative transition-all",
+                              isActive ? "bg-primary" : "bg-zinc-300"
+                            )}
+                          >
+                            <div className={cn(
+                              "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
+                              isActive ? "right-1" : "left-1"
+                            )} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isTrial ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                                <Zap className="w-3 h-3" />
+                                Trial Active
+                              </span>
+                              <span className="text-[9px] text-zinc-400 font-medium">
+                                Expires: {format(isTrial.toDate(), 'dd MMM')}
+                              </span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const trialExpiry = new Date();
+                                trialExpiry.setDate(trialExpiry.getDate() + 14);
+                                const newTrials = { ...(company.featureTrials || {}), [feature.id]: Timestamp.fromDate(trialExpiry) };
+                                const newFeatures = company.features.includes(feature.id) 
+                                  ? company.features 
+                                  : [...company.features, feature.id];
+                                handleUpdateCompany(company.id, { 
+                                  featureTrials: newTrials,
+                                  features: newFeatures
+                                });
+                              }}
+                              className="text-[10px] font-bold text-zinc-400 hover:text-primary transition-all uppercase tracking-widest"
+                            >
+                              Give 14-day Trial
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

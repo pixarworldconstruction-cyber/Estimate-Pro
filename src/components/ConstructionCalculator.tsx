@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   BrickWall, 
   PaintBucket, 
@@ -24,25 +25,40 @@ interface Tool {
   id: ToolType;
   label: string;
   icon: any;
+  featureId: string;
 }
 
 const TOOLS: Tool[] = [
-  { id: 'brick', label: 'Brick Work', icon: BrickWall },
-  { id: 'plaster', label: 'Plastering', icon: PaintBucket },
-  { id: 'paint', label: 'Wall Paint', icon: PaintBucket },
-  { id: 'gypsum', label: 'Gypsum', icon: Layers },
-  { id: 'electrical', label: 'Electrical', icon: Zap },
-  { id: 'flooring', label: 'Flooring', icon: Grid },
-  { id: 'stone', label: 'Stone Work', icon: Gem },
-  { id: 'doors', label: 'Doors', icon: DoorOpen },
-  { id: 'windows', label: 'Windows', icon: Window },
-  { id: 'frame', label: 'Frame Work', icon: Frame },
-  { id: 'kitchen', label: 'Kitchen', icon: ChefHat },
-  { id: 'plumbing', label: 'Plumbing', icon: Droplets },
+  { id: 'brick', label: 'Brick Work', icon: BrickWall, featureId: 'calc-brick' },
+  { id: 'plaster', label: 'Plastering', icon: PaintBucket, featureId: 'calc-plaster' },
+  { id: 'paint', label: 'Wall Paint', icon: PaintBucket, featureId: 'calc-paint' },
+  { id: 'gypsum', label: 'Gypsum', icon: Layers, featureId: 'calc-gypsum' },
+  { id: 'electrical', label: 'Electrical', icon: Zap, featureId: 'calc-electrical' },
+  { id: 'flooring', label: 'Flooring', icon: Grid, featureId: 'calc-flooring' },
+  { id: 'stone', label: 'Stone Work', icon: Gem, featureId: 'calc-stone' },
+  { id: 'doors', label: 'Doors', icon: DoorOpen, featureId: 'calc-doors' },
+  { id: 'windows', label: 'Windows', icon: Window, featureId: 'calc-windows' },
+  { id: 'frame', label: 'Frame Work', icon: Frame, featureId: 'calc-frame' },
+  { id: 'kitchen', label: 'Kitchen', icon: ChefHat, featureId: 'calc-kitchen' },
+  { id: 'plumbing', label: 'Plumbing', icon: Droplets, featureId: 'calc-plumbing' },
 ];
 
 export default function ConstructionCalculator() {
-  const [activeTool, setActiveTool] = useState<ToolType>('brick');
+  const { company } = useAuth();
+  
+  // Filter tools based on company features
+  const availableTools = TOOLS.filter(tool => 
+    company?.features?.includes(tool.featureId) || 
+    !company?.features?.some(f => f.startsWith('calc-')) // If no specific calc features are set, show all if construction-calc is enabled
+  );
+
+  const [activeTool, setActiveTool] = useState<ToolType>(availableTools[0]?.id || 'brick');
+
+  useEffect(() => {
+    if (availableTools.length > 0 && !availableTools.find(t => t.id === activeTool)) {
+      setActiveTool(availableTools[0].id);
+    }
+  }, [availableTools, activeTool]);
   const [specs, setSpecs] = useState<any>({
     length: 10,
     height: 10,
@@ -50,13 +66,18 @@ export default function ConstructionCalculator() {
     thickness: '9" (Double Brick)',
     thicknessMM: 12,
     mixRatio: '1:6',
+    plasterType: 'Internal Wall Plaster',
     tileSize: '2x2 (24"x24")',
     stoneType: 'Granite (Standard)',
     points: {
       lightFan: 0,
       amp6: 0,
       amp15: 0,
-      ac: 0
+      ac: 0,
+      geyser: 0,
+      exhaust: 0,
+      tv: 0,
+      internet: 0
     },
     doors: { material: 'Teak Wood' },
     windows: { material: 'Aluminum' },
@@ -69,7 +90,8 @@ export default function ConstructionCalculator() {
     kitchens: 1,
     extraPoints: 2,
     kitchenType: 'L-Shape',
-    kitchenLength: 10
+    kitchenLength: 10,
+    countertopMaterial: 'Granite'
   });
   const [benchmarks, setBenchmarks] = useState<any>({
     laborRate: 25,
@@ -78,7 +100,11 @@ export default function ConstructionCalculator() {
       lightFan: { labor: 250, material: 600 },
       amp6: { labor: 300, material: 800 },
       amp15: { labor: 600, material: 1500 },
-      ac: { labor: 800, material: 2500 }
+      ac: { labor: 800, material: 2500 },
+      geyser: { labor: 500, material: 1200 },
+      exhaust: { labor: 300, material: 700 },
+      tv: { labor: 400, material: 900 },
+      internet: { labor: 400, material: 1000 }
     }
   });
 
@@ -146,11 +172,19 @@ export default function ConstructionCalculator() {
       labor = (specs.points.lightFan * benchmarks.rates.lightFan.labor) +
               (specs.points.amp6 * benchmarks.rates.amp6.labor) +
               (specs.points.amp15 * benchmarks.rates.amp15.labor) +
-              (specs.points.ac * benchmarks.rates.ac.labor);
+              (specs.points.ac * benchmarks.rates.ac.labor) +
+              (specs.points.geyser * benchmarks.rates.geyser.labor) +
+              (specs.points.exhaust * benchmarks.rates.exhaust.labor) +
+              (specs.points.tv * benchmarks.rates.tv.labor) +
+              (specs.points.internet * benchmarks.rates.internet.labor);
       material = (specs.points.lightFan * benchmarks.rates.lightFan.material) +
                  (specs.points.amp6 * benchmarks.rates.amp6.material) +
                  (specs.points.amp15 * benchmarks.rates.amp15.material) +
-                 (specs.points.ac * benchmarks.rates.ac.material);
+                 (specs.points.ac * benchmarks.rates.ac.material) +
+                 (specs.points.geyser * benchmarks.rates.geyser.material) +
+                 (specs.points.exhaust * benchmarks.rates.exhaust.material) +
+                 (specs.points.tv * benchmarks.rates.tv.material) +
+                 (specs.points.internet * benchmarks.rates.internet.material);
     } else if (activeTool === 'flooring' || activeTool === 'stone') {
       res.primary = { value: area.toFixed(1), label: 'Calculated Area' };
       labor = area * benchmarks.laborRate;
@@ -223,6 +257,15 @@ export default function ConstructionCalculator() {
       case 'plaster':
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Plaster Type</label>
+              <select value={specs.plasterType} onChange={e => setSpecs({ ...specs, plasterType: e.target.value })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all">
+                <option>Internal Wall Plaster (12mm)</option>
+                <option>External Wall Plaster (20mm)</option>
+                <option>Ceiling Plaster (6mm)</option>
+                <option>Rough Plaster</option>
+              </select>
+            </div>
             <div className="space-y-3">
               <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Length (FT)</label>
               <input type="number" value={specs.length} onChange={e => setSpecs({ ...specs, length: parseFloat(e.target.value) || 0 })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
@@ -308,6 +351,22 @@ export default function ConstructionCalculator() {
               <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">A.C. Points (NOS)</label>
               <input type="number" value={specs.points.ac} onChange={e => setSpecs({ ...specs, points: { ...specs.points, ac: parseInt(e.target.value) || 0 } })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
             </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Geyser Points (NOS)</label>
+              <input type="number" value={specs.points.geyser} onChange={e => setSpecs({ ...specs, points: { ...specs.points, geyser: parseInt(e.target.value) || 0 } })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Exhaust Points (NOS)</label>
+              <input type="number" value={specs.points.exhaust} onChange={e => setSpecs({ ...specs, points: { ...specs.points, exhaust: parseInt(e.target.value) || 0 } })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">TV Points (NOS)</label>
+              <input type="number" value={specs.points.tv} onChange={e => setSpecs({ ...specs, points: { ...specs.points, tv: parseInt(e.target.value) || 0 } })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Internet Points (NOS)</label>
+              <input type="number" value={specs.points.internet} onChange={e => setSpecs({ ...specs, points: { ...specs.points, internet: parseInt(e.target.value) || 0 } })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all" />
+            </div>
           </div>
         );
       case 'flooring':
@@ -332,6 +391,12 @@ export default function ConstructionCalculator() {
                 <option>4'x2' (GVT/PGVT)</option>
                 <option>8'x4' (Slab)</option>
                 <option>Wooden Plank (8"x40")</option>
+                <option>6"x24" (Plank)</option>
+                <option>12"x18" (Wall)</option>
+                <option>10"x15" (Wall)</option>
+                <option>12"x12" (Parking)</option>
+                <option>16"x16" (Parking)</option>
+                <option>Custom Size</option>
               </select>
             </div>
           </div>
@@ -353,11 +418,16 @@ export default function ConstructionCalculator() {
                 <option>Granite (Standard)</option>
                 <option>Granite (Black Galaxy)</option>
                 <option>Granite (Tan Brown)</option>
+                <option>Granite (Rajasthan Black)</option>
+                <option>Granite (P-White)</option>
                 <option>Marble (Indian White)</option>
                 <option>Marble (Italian)</option>
+                <option>Marble (Makrana)</option>
                 <option>Kota Stone</option>
                 <option>Sandstone</option>
                 <option>Quartz</option>
+                <option>Kadappa</option>
+                <option>Dholpur Stone</option>
               </select>
             </div>
           </div>
@@ -388,6 +458,18 @@ export default function ConstructionCalculator() {
                 <option>Straight</option>
                 <option>L-Shape</option>
                 <option>U-Shape</option>
+                <option>Parallel</option>
+                <option>Island</option>
+              </select>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Countertop Material</label>
+              <select value={specs.kitchenMaterial} onChange={e => setSpecs({ ...specs, kitchenMaterial: e.target.value })} className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all">
+                <option>Granite</option>
+                <option>Quartz</option>
+                <option>Marble</option>
+                <option>Nano White</option>
+                <option>Kalinga Stone</option>
               </select>
             </div>
             <div className="space-y-3">
@@ -455,6 +537,34 @@ export default function ConstructionCalculator() {
                 <input type="number" value={benchmarks.rates.ac.material} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, ac: { ...benchmarks.rates.ac, material: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Material" />
               </div>
             </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-4">Geyser Point Rates</label>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" value={benchmarks.rates.geyser.labor} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, geyser: { ...benchmarks.rates.geyser, labor: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Labor" />
+                <input type="number" value={benchmarks.rates.geyser.material} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, geyser: { ...benchmarks.rates.geyser, material: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Material" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-4">Exhaust Point Rates</label>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" value={benchmarks.rates.exhaust.labor} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, exhaust: { ...benchmarks.rates.exhaust, labor: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Labor" />
+                <input type="number" value={benchmarks.rates.exhaust.material} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, exhaust: { ...benchmarks.rates.exhaust, material: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Material" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-4">TV Point Rates</label>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" value={benchmarks.rates.tv.labor} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, tv: { ...benchmarks.rates.tv, labor: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Labor" />
+                <input type="number" value={benchmarks.rates.tv.material} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, tv: { ...benchmarks.rates.tv, material: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Material" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-4">Internet Point Rates</label>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" value={benchmarks.rates.internet.labor} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, internet: { ...benchmarks.rates.internet, labor: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Labor" />
+                <input type="number" value={benchmarks.rates.internet.material} onChange={e => setBenchmarks({ ...benchmarks, rates: { ...benchmarks.rates, internet: { ...benchmarks.rates.internet, material: parseFloat(e.target.value) || 0 } } })} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs font-bold" placeholder="Material" />
+              </div>
+            </div>
           </div>
         </div>
       );
@@ -477,7 +587,7 @@ export default function ConstructionCalculator() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap gap-2 no-print">
-        {TOOLS.map((tool) => (
+        {availableTools.map((tool) => (
           <button
             key={tool.id}
             onClick={() => setActiveTool(tool.id)}

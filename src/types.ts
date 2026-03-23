@@ -6,6 +6,7 @@ export interface Company {
   email?: string;
   phone?: string;
   gst?: string;
+  cin?: string;
   pan?: string;
   tan?: string;
   themeColor?: string;
@@ -16,6 +17,7 @@ export interface Company {
   planName: string;
   expiryDate: any;
   features: string[];
+  featureTrials?: { [featureId: string]: any }; // Expiry dates for specific features
   adminName?: string;
   adminEmail?: string;
   tempPassword?: string;
@@ -41,6 +43,7 @@ export interface Client {
   siteAddress: string;
   mob1: string;
   mob2?: string;
+  pan?: string;
   projectType: 'Turnkey' | 'Box' | 'Renovation' | 'Interior';
   projectCategory: 'Residential' | 'Commercial' | 'Industrial';
   budget: number;
@@ -64,16 +67,30 @@ export interface EstimateItem {
   length?: number;
   width?: number;
   unit?: string;
+  total: number;
 }
 
 export interface Estimate {
   id: string;
   companyId: string;
   clientId: string;
+  // Snapshot of client info at time of creation
+  clientName: string;
+  clientMob1: string;
+  clientMob2?: string;
+  clientPan?: string;
+  siteAddress: string;
+  currentAddress: string;
+  propertyType: string;
+  scopeOfWork: string;
+  completionTime: string;
+  budget: string;
+  
   items: EstimateItem[];
   subtotal: number;
   gstAmount: number;
-  discountPercentage: number;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
   discountAmount: number;
   total: number;
   status: 'pending' | 'approved' | 'rejected' | 'viewed' | 'revision';
@@ -83,6 +100,9 @@ export interface Estimate {
   updatedAt: any;
   createdBy: string;
   createdByName: string;
+  estimateNumber: string;
+  gstOverride?: number;
+  isGstManual?: boolean;
 }
 
 export interface Reminder {

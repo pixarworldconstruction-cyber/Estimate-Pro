@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
   Users, 
   FileText, 
@@ -9,13 +9,22 @@ import {
   Clock, 
   CheckCircle, 
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  Handshake,
+  Ban,
+  GitBranch,
+  Eye,
+  Pencil,
+  Trash2,
+  DollarSign
 } from 'lucide-react';
 import { Client, Estimate, Reminder } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
+import ConfirmModal from './ConfirmModal';
 
 export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
   const { staff, company } = useAuth();
@@ -25,12 +34,14 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
     pendingEstimates: 0,
     activeReminders: 0,
     totalRevenue: 0,
-    totalEstimateValue: 0
+    totalEstimateValue: 0,
+    conversionRate: 0
   });
   const [timePeriod, setTimePeriod] = useState<'all' | 'month' | 'week' | 'year'>('all');
   const [recentEstimates, setRecentEstimates] = useState<Estimate[]>([]);
   const [upcomingReminders, setUpcomingReminders] = useState<Reminder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [estimateToDelete, setEstimateToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!staff) return;
@@ -68,16 +79,19 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
       };
 
       const filteredEstimates = filterByTime(allEstimates);
+      const approved = filteredEstimates.filter(e => e.status === 'approved');
       const pending = filteredEstimates.filter(e => e.status === 'pending').length;
-      const revenue = filteredEstimates.filter(e => e.status === 'approved').reduce((acc, e) => acc + (e.total || 0), 0);
+      const revenue = approved.reduce((acc, e) => acc + (e.total || 0), 0);
       const totalVal = filteredEstimates.reduce((acc, e) => acc + (e.total || 0), 0);
+      const conversion = filteredEstimates.length ? (approved.length / filteredEstimates.length * 100) : 0;
 
       setStats(prev => ({ 
         ...prev, 
         totalEstimates: filteredEstimates.length, 
         pendingEstimates: pending,
         totalRevenue: revenue,
-        totalEstimateValue: totalVal
+        totalEstimateValue: totalVal,
+        conversionRate: conversion
       }));
       
       const sortedEstimates = allEstimates
@@ -86,7 +100,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
           const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
           return dateB.getTime() - dateA.getTime();
         })
-        .slice(0, 5);
+        .slice(0, 10);
       setRecentEstimates(sortedEstimates);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'estimates'));
 
@@ -111,141 +125,209 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
     };
   }, [staff, timePeriod]);
 
-  const statCards = [
-    ...(company?.features?.includes('clients') ? [{ label: 'Total Clients', value: stats.totalClients, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' }] : []),
-    ...(company?.features?.includes('estimates') ? [{ label: 'Total Estimates', value: stats.totalEstimates, icon: FileText, color: 'text-purple-500', bg: 'bg-purple-50' }] : []),
-    ...(company?.features?.includes('estimates') ? [{ label: 'Pending Estimates', value: stats.pendingEstimates, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' }] : []),
-    ...(company?.features?.includes('reminders') ? [{ label: 'Active Reminders', value: stats.activeReminders, icon: Bell, color: 'text-rose-500', bg: 'bg-rose-50' }] : []),
-  ];
+  const handleStatusUpdate = async (estimateId: string, status: Estimate['status']) => {
+    try {
+      await updateDoc(doc(db, 'estimates', estimateId), { status });
+    } catch (error) {
+      console.error('Failed to update status', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!estimateToDelete) return;
+    try {
+      await deleteDoc(doc(db, 'estimates', estimateToDelete));
+      setEstimateToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete estimate', error);
+    }
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+    <div className="space-y-10">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-zinc-900">
-            Welcome to {company?.name || 'Estimate Pro'}!
-          </h1>
-          <p className="text-zinc-500">Here's what's happening with your projects today.</p>
+          <h1 className="text-5xl font-black text-zinc-900 tracking-tighter mb-2">Project Hub</h1>
+          <p className="text-zinc-500 font-medium">Estimates are synced in real-time with your cloud account.</p>
         </div>
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <select 
-            value={timePeriod}
-            onChange={(e) => setTimePeriod(e.target.value as any)}
-            className="bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-primary"
-          >
-            <option value="all">All Time</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
-          </select>
-          {company?.features?.includes('estimates') && (
-            <div className="flex gap-4">
-              <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-zinc-100">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Total Revenue (Approved)</div>
-                <div className="text-xl font-black text-primary">{formatCurrency(stats.totalRevenue)}</div>
-              </div>
-              <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-zinc-100">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Total Estimate Value</div>
-                <div className="text-xl font-black text-zinc-900">{formatCurrency(stats.totalEstimateValue)}</div>
-              </div>
-            </div>
-          )}
+        <button
+          onClick={() => setActiveTab('estimates')}
+          className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-4 rounded-2xl font-bold shadow-xl shadow-zinc-900/20 hover:scale-[1.02] transition-all"
+        >
+          <Plus className="w-5 h-5" />
+          New Estimate
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="bg-white p-10 rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Conversion Rate</div>
+          <div className="text-6xl font-black text-zinc-900">{stats.conversionRate.toFixed(0)}%</div>
+        </div>
+        
+        <div className="bg-white p-10 rounded-[40px] shadow-sm border-l-4 border-l-primary border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Aggregate Value</div>
+          <div className="text-6xl font-black text-zinc-900">{formatCurrency(stats.totalEstimateValue)}</div>
+        </div>
+
+        <div className="bg-white p-10 rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Business Value</div>
+          <div className="text-6xl font-black text-emerald-500">{formatCurrency(stats.totalRevenue)}</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100 flex items-center gap-4">
-            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", stat.bg)}>
-              <stat.icon className={cn("w-6 h-6", stat.color)} />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-zinc-900">{stat.value}</div>
-              <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{stat.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Estimates */}
-        {company?.features?.includes('estimates') && (
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-zinc-900">Recent Estimates</h2>
-              <button 
-                onClick={() => setActiveTab('estimates')}
-                className="text-primary text-sm font-bold flex items-center gap-1 hover:underline"
-              >
-                View All <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {recentEstimates.map(estimate => {
-                const client = clients.find(c => c.id === estimate.clientId);
-                return (
-                  <div key={estimate.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-zinc-400 border border-zinc-100">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-zinc-900">{client?.name || 'Unknown'}</div>
-                        <div className="text-xs text-zinc-500">{formatCurrency(estimate.total)}</div>
-                      </div>
-                    </div>
+      {/* Recent Estimates Table */}
+      <div className="bg-white rounded-[40px] shadow-sm border border-zinc-100 overflow-hidden">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-zinc-50/50 border-b border-zinc-100">
+              <th className="px-8 py-6 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Est No.</th>
+              <th className="px-8 py-6 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Customer</th>
+              <th className="px-8 py-6 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Status</th>
+              <th className="px-8 py-6 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Total</th>
+              <th className="px-8 py-6 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-50">
+            {recentEstimates.map(estimate => {
+              const client = clients.find(c => c.id === estimate.clientId);
+              return (
+                <tr key={estimate.id} className="hover:bg-zinc-50/50 transition-all group">
+                  <td className="px-8 py-8">
+                    <span className="text-sm font-bold text-primary hover:underline cursor-pointer" onClick={() => setActiveTab('estimates')}>
+                      {estimate.estimateNumber || `EST-${estimate.id.slice(0, 6).toUpperCase()}`}
+                    </span>
+                  </td>
+                  <td className="px-8 py-8">
+                    <div className="font-black text-zinc-900">{client?.name || 'Unknown'}</div>
+                  </td>
+                  <td className="px-8 py-8">
                     <span className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
-                      estimate.status === 'approved' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                      "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                      estimate.status === 'approved' ? "bg-emerald-100 text-emerald-700" :
+                      estimate.status === 'pending' ? "bg-blue-100 text-blue-700" :
+                      estimate.status === 'rejected' ? "bg-rose-100 text-rose-700" :
+                      estimate.status === 'revision' ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
                     )}>
                       {estimate.status}
                     </span>
-                  </div>
-                );
-              })}
-              {recentEstimates.length === 0 && <p className="text-center text-zinc-400 py-8 italic">No estimates yet.</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Upcoming Reminders */}
-        {company?.features?.includes('reminders') && (
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-zinc-900">Upcoming Reminders</h2>
-              <button 
-                onClick={() => setActiveTab('reminders')}
-                className="text-primary text-sm font-bold flex items-center gap-1 hover:underline"
-              >
-                View All <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {upcomingReminders.map(reminder => {
-                const client = clients.find(c => c.id === reminder.clientId);
-                return (
-                  <div key={reminder.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-zinc-400 border border-zinc-100">
-                        <Bell className="w-5 h-5" />
+                  </td>
+                  <td className="px-8 py-8">
+                    <div className="text-xl font-black text-zinc-900">{formatCurrency(estimate.total)}</div>
+                  </td>
+                  <td className="px-8 py-8">
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="flex items-center gap-2 pr-4 border-r border-zinc-100">
+                        <button 
+                          onClick={() => handleStatusUpdate(estimate.id, 'approved')}
+                          className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                          title="Approve"
+                        >
+                          <Handshake className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleStatusUpdate(estimate.id, 'rejected')}
+                          className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                          title="Reject"
+                        >
+                          <Ban className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleStatusUpdate(estimate.id, 'revision')}
+                          className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
+                          title="Revision"
+                        >
+                          <GitBranch className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div>
-                        <div className="font-bold text-zinc-900">{reminder.title}</div>
-                        <div className="text-xs text-zinc-500">For: {client?.name || 'Unknown'}</div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setActiveTab('estimates')}
+                          className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab('estimates')}
+                          className="p-3 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setEstimateToDelete(estimate.id)}
+                          className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-zinc-900">{format(new Date(reminder.dueDate), 'dd MMM')}</div>
-                      <div className="text-[10px] text-zinc-400 uppercase">Due Date</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {upcomingReminders.length === 0 && <p className="text-center text-zinc-400 py-8 italic">No reminders yet.</p>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {recentEstimates.length === 0 && (
+          <div className="p-20 text-center">
+            <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-10 h-10 text-zinc-200" />
             </div>
+            <p className="text-zinc-400 font-medium italic">No recent estimates found.</p>
           </div>
         )}
       </div>
+
+      {/* Upcoming Reminders (Optional, keeping it but styled better) */}
+      {company?.features?.includes('reminders') && upcomingReminders.length > 0 && (
+        <div className="bg-white p-10 rounded-[40px] shadow-sm border border-zinc-100">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-black text-zinc-900">Upcoming Reminders</h2>
+            <button 
+              onClick={() => setActiveTab('reminders')}
+              className="text-primary text-sm font-bold flex items-center gap-2 hover:underline"
+            >
+              View All <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {upcomingReminders.map(reminder => {
+              const client = clients.find(c => c.id === reminder.clientId);
+              return (
+                <div key={reminder.id} className="flex items-center justify-between p-6 bg-zinc-50 rounded-3xl border border-zinc-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-zinc-400 border border-zinc-100 shadow-sm">
+                      <Bell className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-zinc-900">{reminder.title}</div>
+                      <div className="text-xs text-zinc-500">For: {client?.name || 'Unknown'}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-zinc-900">{format(new Date(reminder.dueDate), 'dd MMM')}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase font-bold">Due</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={!!estimateToDelete}
+        onClose={() => setEstimateToDelete(null)}
+        onConfirm={handleDelete}
+        title="Delete Estimate?"
+        message="Are you sure you want to delete this estimate? This action cannot be undone."
+        confirmText="Delete"
+      />
     </div>
   );
 }
+

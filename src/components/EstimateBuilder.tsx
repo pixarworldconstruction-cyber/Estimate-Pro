@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Package, PlusCircle, MinusCircle, History, CheckCircle, Clock, Eye } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Package, PlusCircle, MinusCircle, History, CheckCircle, Clock, Eye, IndianRupee, Calculator } from 'lucide-react';
 import { Estimate, Client, Item, EstimateItem, Company } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { formatCurrency, cn } from '../lib/utils';
@@ -17,24 +17,45 @@ export default function EstimateBuilder() {
   const [clients, setClients] = useState<Client[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [selectedEstimate, setSelectedEstimate] = useState<Estimate | null>(null);
   const [estimateToDelete, setEstimateToDelete] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const initialFormData: Partial<Estimate> = {
     clientId: '',
+    clientName: '',
+    clientMob1: '',
+    clientMob2: '',
+    clientPan: '',
+    siteAddress: '',
+    currentAddress: '',
+    propertyType: 'Resident',
+    scopeOfWork: 'New Box Construction',
+    completionTime: '',
+    budget: '',
     items: [],
     total: 0,
     subtotal: 0,
     gstAmount: 0,
-    discountPercentage: 0,
+    discountType: 'percentage',
+    discountValue: 0,
     discountAmount: 0,
     status: 'pending',
     revisions: 0,
+    estimateNumber: `EST-${Math.floor(100000 + Math.random() * 900000)}`,
     terms: [
-      '50% advance payment required to start the project.',
-      'GST will be charged extra as applicable.',
-      'Validity of this estimate is 15 days.'
+      'Plinth height up to 18inch from road level up, Foundation up to 5ft. from road level down.',
+      'Steel size for above estimate will use 8mm, 10mm, 12mm, 14mm, 16mm. Larger sizes will be extra.',
+      'Above rate only covers Masonry, Plaster, Foundation RCC, PCC, Slab, Beam Column RCC Work.',
+      'Reti(sand), Kapchit(grit), Red Brick as per standard material available in local market.',
+      'Inside 1 coat mala Plaster finish, outside 1 coat Plaster.',
+      'All internal walls will be partition wall size, outer walls will be 9" thick as per drawing.',
+      'Landscape, Garden, Terrace Garden, Compound Wall, Gate, balcony railings not included in above rate.',
+      'Above all item price GST not included, GST charge extra as per item.',
+      'Selection of higher range of material selected by Client will be charged extra.',
+      'Drinking Water, Regular use water & Electricity should be provided by client.',
+      'FINAL BILL WILL BE ON THE BASIS OF ACTUAL MEASUREMENT AND ACTUAL WORK DONE.'
     ]
   };
 
@@ -87,30 +108,30 @@ export default function EstimateBuilder() {
     };
   }, [staff]);
 
-  const calculateTotal = (items: EstimateItem[], discountPerc: number = 0) => {
-    const subtotal = items.reduce((acc, item) => {
-      const length = Number(item.length) || 0;
-      const width = Number(item.width) || 0;
-      const price = Number(item.price) || 0;
-      const qty = Number(item.qty) || 0;
-      const area = (length && width) ? length * width : 1;
-      return acc + (price * qty * area);
-    }, 0);
+  const calculateTotal = (items: EstimateItem[], discountType: 'percentage' | 'fixed' = 'percentage', discountValue: number = 0, isGstManual: boolean = false, gstOverride: number = 0) => {
+    const subtotal = items.reduce((acc, item) => acc + item.total, 0);
     
-    const discountAmt = subtotal * ((Number(discountPerc) || 0) / 100);
+    let discountAmt = 0;
+    if (discountType === 'percentage') {
+      discountAmt = subtotal * ((Number(discountValue) || 0) / 100);
+    } else {
+      discountAmt = Number(discountValue) || 0;
+    }
+    
     const afterDiscount = subtotal - discountAmt;
     
-    const gstAmt = items.reduce((acc, item) => {
-      const length = Number(item.length) || 0;
-      const width = Number(item.width) || 0;
-      const price = Number(item.price) || 0;
-      const qty = Number(item.qty) || 0;
-      const gst = Number(item.gst) || 0;
-      const area = (length && width) ? length * width : 1;
-      const itemBase = price * qty * area;
-      const itemDiscount = itemBase * ((Number(discountPerc) || 0) / 100);
-      return acc + (itemBase - itemDiscount) * (gst / 100);
-    }, 0);
+    let gstAmt = 0;
+    if (isGstManual) {
+      gstAmt = Number(gstOverride) || 0;
+    } else {
+      gstAmt = items.reduce((acc, item) => {
+        const itemBase = item.total;
+        const itemDiscount = discountType === 'percentage' 
+          ? itemBase * ((Number(discountValue) || 0) / 100)
+          : (itemBase / subtotal) * discountAmt;
+        return acc + (itemBase - itemDiscount) * (item.gst / 100);
+      }, 0);
+    }
 
     return {
       subtotal: Number(subtotal.toFixed(2)),
@@ -120,9 +141,18 @@ export default function EstimateBuilder() {
     };
   };
 
+  const calculateItemTotal = (item: Partial<EstimateItem>) => {
+    const length = Number(item.length) || 0;
+    const width = Number(item.width) || 0;
+    const price = Number(item.price) || 0;
+    const qty = Number(item.qty) || 0;
+    const area = (length && width) ? length * width : 1;
+    return Number((price * qty * area).toFixed(2));
+  };
+
   const addItemToEstimate = (item: Item) => {
     const newItems = [...(formData.items || [])];
-    newItems.push({
+    const newItem: EstimateItem = {
       itemId: item.id,
       name: item.name,
       qty: 1,
@@ -130,9 +160,12 @@ export default function EstimateBuilder() {
       gst: item.gst,
       length: 0,
       width: 0,
-      unit: 'ft'
-    });
-    const totals = calculateTotal(newItems, formData.discountPercentage);
+      unit: 'ft',
+      total: 0
+    };
+    newItem.total = calculateItemTotal(newItem);
+    newItems.push(newItem);
+    const totals = calculateTotal(newItems, formData.discountType, formData.discountValue, formData.isGstManual, formData.gstOverride);
     setFormData(prev => ({ ...prev, items: newItems, ...totals }));
   };
 
@@ -141,8 +174,10 @@ export default function EstimateBuilder() {
     newItems[index] = { ...newItems[index], ...updates };
     if (newItems[index].qty <= 0) {
       newItems.splice(index, 1);
+    } else {
+      newItems[index].total = calculateItemTotal(newItems[index]);
     }
-    const totals = calculateTotal(newItems, formData.discountPercentage);
+    const totals = calculateTotal(newItems, formData.discountType, formData.discountValue, formData.isGstManual, formData.gstOverride);
     setFormData(prev => ({ ...prev, items: newItems, ...totals }));
   };
 
@@ -163,14 +198,18 @@ export default function EstimateBuilder() {
         dataToSave.revisions = (selectedEstimate.revisions || 0) + 1;
       }
       await updateDoc(doc(db, 'estimates', selectedEstimate.id), dataToSave);
+      const updatedEstimate = { ...dataToSave, id: selectedEstimate.id } as Estimate;
+      setSelectedEstimate(updatedEstimate);
+      setFormData(updatedEstimate);
     } else {
       dataToSave.createdAt = serverTimestamp();
       dataToSave.revisions = 0;
-      await addDoc(collection(db, 'estimates'), dataToSave);
+      const docRef = await addDoc(collection(db, 'estimates'), dataToSave);
+      const newEstimate = { ...dataToSave, id: docRef.id, createdAt: { toDate: () => new Date() } } as any;
+      setSelectedEstimate(newEstimate);
+      setFormData(newEstimate);
     }
-    setIsModalOpen(false);
-    setSelectedEstimate(null);
-    setFormData(initialFormData);
+    setIsPreviewMode(true);
   };
 
   const [estimateToPrint, setEstimateToPrint] = useState<Estimate | null>(null);
@@ -467,214 +506,626 @@ export default function EstimateBuilder() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white w-full max-w-5xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold text-zinc-900">
-                {selectedEstimate ? 'Edit Estimate' : 'Create New Estimate'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <div className="bg-zinc-50 w-full max-w-7xl rounded-3xl shadow-2xl my-8">
+            <div className="p-8 border-b border-zinc-200 bg-white rounded-t-3xl flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <h2 className="text-2xl font-bold text-zinc-900">
+                  {isPreviewMode ? 'Estimate Preview' : 'Create Professional Estimate'}
+                </h2>
+                <div className="flex bg-zinc-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewMode(false)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      !isPreviewMode ? "bg-white text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewMode(true)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      isPreviewMode ? "bg-white text-primary shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Preview
+                  </button>
+                </div>
+              </div>
+              <button onClick={() => { setIsModalOpen(false); setIsPreviewMode(false); }} className="p-2 hover:bg-zinc-100 rounded-full transition-all">
                 <MinusCircle className="w-6 h-6 text-zinc-400" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-8">
-                {/* Client Selection */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                    <User className="w-5 h-5 text-primary" />
-                    Select Client
-                  </h3>
-                  <select
-                    value={formData.clientId}
-                    onChange={e => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    required
+            {isPreviewMode ? (
+              <div className="p-8 space-y-8 bg-zinc-100 min-h-[600px] flex flex-col items-center">
+                <div className="bg-white shadow-2xl rounded-sm w-full max-w-[210mm] min-h-[297mm] p-[20mm] origin-top transform scale-[0.85] md:scale-100">
+                  {/* Reuse the PDF template logic here for preview */}
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center border-b-2 border-zinc-900 pb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center overflow-hidden">
+                          {company?.logoUrl ? (
+                            <img src={company.logoUrl} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="text-2xl font-black">{company?.name?.[0] || 'P'}</span>
+                          )}
+                        </div>
+                        <div>
+                          <h1 className="text-xl font-black text-zinc-900 leading-tight">{company?.name}</h1>
+                          <p className="text-[10px] text-zinc-500">{company?.address}</p>
+                        </div>
+                      </div>
+                      <div className="text-right text-[9px] text-zinc-500 space-y-0.5">
+                        <p>CIN: {company?.cin}</p>
+                        <p>GST: {company?.gst}</p>
+                        <p>Mo: {company?.phone}</p>
+                        <p>Email: {company?.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center border border-zinc-900 p-2">
+                      <h2 className="text-sm font-bold underline uppercase">General Estimate</h2>
+                      <p className="text-xs font-bold">Date: {format(new Date(), 'dd/MM/yyyy')}</p>
+                    </div>
+
+                    <table className="w-full border-collapse text-xs">
+                      <tbody>
+                        <tr>
+                          <td className="border border-zinc-900 p-2 font-bold w-1/4 bg-zinc-50">Customer Name:</td>
+                          <td className="border border-zinc-900 p-2 w-1/2">{formData.clientName}</td>
+                          <td className="border border-zinc-900 p-2 font-bold w-1/6 bg-zinc-50">Mob:</td>
+                          <td className="border border-zinc-900 p-2">{formData.clientMob1}</td>
+                        </tr>
+                        <tr>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Site Address:</td>
+                          <td className="border border-zinc-900 p-2">{formData.siteAddress}</td>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">EST No:</td>
+                          <td className="border border-zinc-900 p-2">{formData.estimateNumber}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <table className="w-full border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-zinc-50">
+                          <th className="border border-zinc-900 p-2 text-left w-12">Sr.</th>
+                          <th className="border border-zinc-900 p-2 text-left">Item Name</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">Unit</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">Price</th>
+                          <th className="border border-zinc-900 p-2 text-center w-16">Qty.</th>
+                          <th className="border border-zinc-900 p-2 text-right w-24">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.items?.map((item, index) => (
+                          <tr key={index}>
+                            <td className="border border-zinc-900 p-2 text-center">{index + 1}</td>
+                            <td className="border border-zinc-900 p-2 font-medium">{item.name}</td>
+                            <td className="border border-zinc-900 p-2 text-center uppercase">{item.unit}</td>
+                            <td className="border border-zinc-900 p-2 text-center">₹{item.price}</td>
+                            <td className="border border-zinc-900 p-2 text-center">{item.qty}</td>
+                            <td className="border border-zinc-900 p-2 text-right font-bold">₹{item.total.toLocaleString('en-IN')}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={5} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">SUB TOTAL</td>
+                          <td className="border border-zinc-900 p-2 text-right font-bold">₹{formData.subtotal?.toLocaleString('en-IN')}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={5} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">GST (ESTIMATED)</td>
+                          <td className="border border-zinc-900 p-2 text-right font-bold">+ ₹{formData.gstAmount?.toLocaleString('en-IN')}</td>
+                        </tr>
+                        <tr className="bg-zinc-900 text-white">
+                          <td colSpan={5} className="border border-zinc-900 p-3 text-right font-bold text-xs">GRAND TOTAL ESTIMATED</td>
+                          <td className="border border-zinc-900 p-3 text-right font-bold text-lg">₹{formData.total?.toLocaleString('en-IN')}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div className="border border-zinc-900">
+                      <div className="bg-zinc-900 text-white p-1.5 text-center font-bold text-[10px] uppercase">Work Details & Terms</div>
+                      <div className="p-4 space-y-1.5">
+                        {formData.terms?.map((term, index) => (
+                          <div key={index} className="flex gap-2 text-[10px]">
+                            <span className="font-bold">{index + 1}.</span>
+                            <p>{term}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setIsPreviewMode(false)}
+                    className="px-8 py-3 bg-white border border-zinc-200 text-zinc-600 font-bold rounded-xl hover:bg-zinc-50 transition-all"
                   >
-                    <option value="">Choose a client...</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.mob1})</option>
-                    ))}
-                  </select>
+                    Back to Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setIsPreviewMode(false);
+                      setFormData(initialFormData);
+                    }}
+                    className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                  >
+                    Finish & Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="p-8 space-y-8">
+              {/* Customer & Project Profile */}
+              <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-8">
+                <div className="flex items-center gap-4 border-b border-zinc-100 pb-4">
+                  <h3 className="text-sm font-bold text-primary uppercase tracking-widest">Customer & Project Profile</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Customer Name</label>
+                    <input
+                      type="text"
+                      value={formData.clientName}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const client = clients.find(c => c.name === val);
+                        if (client) {
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            clientId: client.id,
+                            clientName: client.name,
+                            clientMob1: client.mob1,
+                            clientMob2: client.mob2 || '',
+                            clientPan: client.pan || '',
+                            siteAddress: client.siteAddress,
+                            currentAddress: client.currentAddress
+                          }));
+                        } else {
+                          setFormData(prev => ({ ...prev, clientName: val }));
+                        }
+                      }}
+                      list="client-list"
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Customer Name"
+                      required
+                    />
+                    <datalist id="client-list">
+                      {clients.map(c => <option key={c.id} value={c.name} />)}
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mobile Number</label>
+                    <input
+                      type="text"
+                      value={formData.clientMob1}
+                      onChange={e => setFormData(prev => ({ ...prev, clientMob1: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Mobile Number"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Alt Mobile</label>
+                    <input
+                      type="text"
+                      value={formData.clientMob2}
+                      onChange={e => setFormData(prev => ({ ...prev, clientMob2: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Alt Mobile"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">PAN Number</label>
+                    <input
+                      type="text"
+                      value={formData.clientPan}
+                      onChange={e => setFormData(prev => ({ ...prev, clientPan: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="PAN Number"
+                    />
+                  </div>
+                  <div className="lg:col-span-2 space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Site Address</label>
+                    <input
+                      type="text"
+                      value={formData.siteAddress}
+                      onChange={e => setFormData(prev => ({ ...prev, siteAddress: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Site Address"
+                    />
+                  </div>
+                  <div className="lg:col-span-2 space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Current Address</label>
+                    <input
+                      type="text"
+                      value={formData.currentAddress}
+                      onChange={e => setFormData(prev => ({ ...prev, currentAddress: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Current Address"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Property Type</label>
+                    <select
+                      value={formData.propertyType}
+                      onChange={e => setFormData(prev => ({ ...prev, propertyType: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium bg-transparent"
+                    >
+                      <option value="Resident">Resident</option>
+                      <option value="Commercial">Commercial</option>
+                      <option value="Industrial">Industrial</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Scope of Work</label>
+                    <select
+                      value={formData.scopeOfWork}
+                      onChange={e => setFormData(prev => ({ ...prev, scopeOfWork: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium bg-transparent"
+                    >
+                      <option value="New Box Construction">New Box Construction</option>
+                      <option value="Turnkey Project">Turnkey Project</option>
+                      <option value="Renovation">Renovation</option>
+                      <option value="Interior Design">Interior Design</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Estimate Completion</label>
+                    <input
+                      type="text"
+                      value={formData.completionTime}
+                      onChange={e => setFormData(prev => ({ ...prev, completionTime: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="e.g. 6 Months"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Budget</label>
+                    <input
+                      type="text"
+                      value={formData.budget}
+                      onChange={e => setFormData(prev => ({ ...prev, budget: e.target.value }))}
+                      className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
+                      placeholder="Approx Budget"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Measurement & Pricing Table */}
+              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-zinc-100 flex justify-between items-center">
+                  <h3 className="font-bold text-zinc-800">Measurement & Pricing Table</h3>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const newItem: EstimateItem = {
+                        itemId: 'custom-' + Date.now(),
+                        name: 'Custom Item',
+                        qty: 1,
+                        price: 0,
+                        gst: 18,
+                        length: 0,
+                        width: 0,
+                        unit: 'ft',
+                        total: 0
+                      };
+                      const newItems = [...(formData.items || []), newItem];
+                      const totals = calculateTotal(newItems, formData.discountType, formData.discountValue, formData.isGstManual, formData.gstOverride);
+                      setFormData(prev => ({ ...prev, items: newItems, ...totals }));
+                    }}
+                    className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md shadow-primary/20 hover:scale-105 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Custom Item
+                  </button>
                 </div>
 
-                {/* Item Selection */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary" />
-                    Add Items
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-1">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-zinc-50 text-[10px] font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100">
+                        <th className="px-6 py-4">SR.</th>
+                        <th className="px-6 py-4">Item Name</th>
+                        <th className="px-6 py-4">L / H</th>
+                        <th className="px-6 py-4">W / D</th>
+                        <th className="px-6 py-4">Unit</th>
+                        <th className="px-6 py-4">GST%</th>
+                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4">QTY.</th>
+                        <th className="px-6 py-4 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50">
+                      {formData.items?.map((item, index) => (
+                        <tr key={index} className="group hover:bg-zinc-50/50 transition-all">
+                          <td className="px-6 py-4 text-xs text-zinc-400 font-medium">{index + 1}</td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={e => updateItem(index, { name: e.target.value })}
+                              className="w-full bg-transparent border-none outline-none text-sm font-semibold text-zinc-800 focus:ring-0 p-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="number"
+                              value={item.length || 0}
+                              onChange={e => updateItem(index, { length: parseFloat(e.target.value) || 0 })}
+                              className="w-16 bg-transparent border-none outline-none text-sm font-medium text-zinc-600 focus:ring-0 p-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="number"
+                              value={item.width || 0}
+                              onChange={e => updateItem(index, { width: parseFloat(e.target.value) || 0 })}
+                              className="w-16 bg-transparent border-none outline-none text-sm font-medium text-zinc-600 focus:ring-0 p-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={item.unit || 'ft'}
+                              onChange={e => updateItem(index, { unit: e.target.value })}
+                              className="bg-transparent border-none outline-none text-sm font-medium text-zinc-600 focus:ring-0 p-0"
+                            >
+                              <option value="ft">ft</option>
+                              <option value="m">m</option>
+                              <option value="in">in</option>
+                              <option value="Unit">Unit</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="number"
+                              value={item.gst || 0}
+                              onChange={e => updateItem(index, { gst: parseFloat(e.target.value) || 0 })}
+                              className="w-12 bg-transparent border-none outline-none text-sm font-medium text-zinc-600 focus:ring-0 p-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="number"
+                              value={item.price || 0}
+                              onChange={e => updateItem(index, { price: parseFloat(e.target.value) || 0 })}
+                              className="w-24 bg-transparent border-none outline-none text-sm font-medium text-zinc-600 focus:ring-0 p-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <button type="button" onClick={() => updateItem(index, { qty: item.qty - 1 })} className="text-zinc-300 hover:text-red-500 transition-all">
+                                <MinusCircle className="w-4 h-4" />
+                              </button>
+                              <span className="text-sm font-bold text-zinc-700 w-4 text-center">{item.qty}</span>
+                              <button type="button" onClick={() => updateItem(index, { qty: item.qty + 1 })} className="text-zinc-300 hover:text-primary transition-all">
+                                <PlusCircle className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-4">
+                              <span className="text-sm font-bold text-zinc-900">{formatCurrency(item.total)}</span>
+                              <button 
+                                type="button" 
+                                onClick={() => updateItem(index, { qty: 0 })}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-red-500 transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!formData.items || formData.items.length === 0) && (
+                    <div className="p-12 text-center text-zinc-400 italic text-sm">No items added to the table yet.</div>
+                  )}
+                </div>
+
+                <div className="p-8 bg-zinc-50/50 border-t border-zinc-100 flex flex-col md:flex-row gap-8 justify-between items-start">
+                  {/* GST Breakdown Summary */}
+                  <div className="bg-white p-6 rounded-2xl border border-zinc-200 w-full max-w-md space-y-4 shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">GST Breakdown Summary</h4>
+                      <div className="flex bg-zinc-100 p-1 rounded-lg">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const totals = calculateTotal(formData.items || [], formData.discountType, formData.discountValue, false, 0);
+                            setFormData(prev => ({ ...prev, isGstManual: false, ...totals }));
+                          }}
+                          className={cn(
+                            "px-3 py-1 rounded-md text-[9px] font-bold transition-all",
+                            !formData.isGstManual ? "bg-primary text-white shadow-sm" : "text-zinc-500"
+                          )}
+                        >
+                          AUTO (Line-based)
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, isGstManual: true }));
+                          }}
+                          className={cn(
+                            "px-3 py-1 rounded-md text-[9px] font-bold transition-all",
+                            formData.isGstManual ? "bg-primary text-white shadow-sm" : "text-zinc-500"
+                          )}
+                        >
+                          MANUAL OVERRIDE
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t border-zinc-100 pt-4 space-y-2">
+                      {!formData.isGstManual ? (
+                        <div className="text-[10px] text-zinc-400 italic">
+                          {formData.items?.length ? 'GST calculated based on line items.' : 'No GST applied to any line items.'}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-zinc-600">Manual GST Amount</span>
+                          <input
+                            type="number"
+                            value={formData.gstOverride || 0}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const totals = calculateTotal(formData.items || [], formData.discountType, formData.discountValue, true, val);
+                              setFormData(prev => ({ ...prev, gstOverride: val, ...totals }));
+                            }}
+                            className="w-24 px-2 py-1 bg-zinc-50 rounded border border-zinc-200 text-xs font-bold text-zinc-900 outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2 border-t border-zinc-50">
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Total Computed GST</span>
+                        <span className="text-sm font-bold text-primary">{formatCurrency(formData.gstAmount || 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Totals Section */}
+                  <div className="w-full max-w-md space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Sub Total</span>
+                        <span className="text-2xl font-black text-zinc-900">{formatCurrency(formData.subtotal || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Effective GST</span>
+                        <span className="text-lg font-bold text-primary">+ {formatCurrency(formData.gstAmount || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Discount</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex bg-zinc-100 p-0.5 rounded-lg border border-zinc-200">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const totals = calculateTotal(formData.items || [], 'fixed', formData.discountValue, formData.isGstManual, formData.gstOverride);
+                                setFormData(prev => ({ ...prev, discountType: 'fixed', ...totals }));
+                              }}
+                              className={cn("p-1.5 rounded-md transition-all", formData.discountType === 'fixed' ? "bg-primary text-white" : "text-zinc-400")}
+                            >
+                              <IndianRupee className="w-3 h-3" />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const totals = calculateTotal(formData.items || [], 'percentage', formData.discountValue, formData.isGstManual, formData.gstOverride);
+                                setFormData(prev => ({ ...prev, discountType: 'percentage', ...totals }));
+                              }}
+                              className={cn("p-1.5 rounded-md transition-all", formData.discountType === 'percentage' ? "bg-primary text-white" : "text-zinc-400")}
+                            >
+                              <span className="text-[10px] font-bold">%</span>
+                            </button>
+                          </div>
+                          <input
+                            type="number"
+                            value={formData.discountValue || 0}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const totals = calculateTotal(formData.items || [], formData.discountType, val, formData.isGstManual, formData.gstOverride);
+                              setFormData(prev => ({ ...prev, discountValue: val, ...totals }));
+                            }}
+                            className="w-20 px-3 py-2 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-900 outline-none focus:border-primary text-center"
+                          />
+                          <span className="text-xs font-bold text-red-500">(- {formatCurrency(formData.discountAmount || 0)})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-zinc-200 flex justify-between items-center">
+                      <span className="text-lg font-black text-zinc-900 uppercase tracking-tighter">Estimate Grand Total</span>
+                      <span className="text-5xl font-black text-primary tracking-tighter">{formatCurrency(formData.total || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Quick Add Catalog */}
+                <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-6">
+                  <div className="flex items-center gap-2 text-primary">
+                    <PlusCircle className="w-5 h-5" />
+                    <h3 className="font-bold">Quick Add Catalog</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
                     {items.map(item => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => addItemToEstimate(item)}
-                        className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100 hover:border-primary hover:bg-primary-light transition-all text-left"
+                        className="flex items-center justify-between p-4 bg-zinc-50 rounded-xl border border-zinc-100 hover:border-primary hover:bg-primary-light transition-all text-left group"
                       >
-                        <div>
-                          <div className="font-bold text-zinc-800 text-sm">{item.name}</div>
-                          <div className="text-xs text-zinc-500">{formatCurrency(item.price)}</div>
+                        <div className="space-y-1">
+                          <div className="font-bold text-zinc-800 text-xs group-hover:text-primary transition-all">{item.name}</div>
+                          <div className="text-[10px] text-zinc-400 font-medium">{formatCurrency(item.price)}</div>
                         </div>
-                        <PlusCircle className="w-5 h-5 text-primary" />
+                        <Plus className="w-4 h-4 text-zinc-300 group-hover:text-primary transition-all" />
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Selected Items List */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-zinc-900">Estimate Items</h3>
-                  <div className="bg-zinc-50 rounded-2xl border border-zinc-100 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-zinc-100/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                          <th className="px-4 py-3">Item</th>
-                          <th className="px-4 py-3">Dimensions</th>
-                          <th className="px-4 py-3">Qty</th>
-                          <th className="px-4 py-3">Price</th>
-                          <th className="px-4 py-3">GST</th>
-                          <th className="px-4 py-3 text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100">
-                        {formData.items?.map((item, index) => (
-                          <tr key={index} className="text-sm">
-                            <td className="px-4 py-3 font-bold text-zinc-800">{item.name}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={item.length || 0}
-                                  onChange={e => updateItem(index, { length: parseFloat(e.target.value) || 0 })}
-                                  className="w-12 px-1 py-1 rounded border border-zinc-200 text-xs"
-                                  placeholder="L"
-                                />
-                                <span className="text-zinc-400">x</span>
-                                <input
-                                  type="number"
-                                  value={item.width || 0}
-                                  onChange={e => updateItem(index, { width: parseFloat(e.target.value) || 0 })}
-                                  className="w-12 px-1 py-1 rounded border border-zinc-200 text-xs"
-                                  placeholder="W"
-                                />
-                                <select
-                                  value={item.unit || 'ft'}
-                                  onChange={e => updateItem(index, { unit: e.target.value as any })}
-                                  className="px-1 py-1 rounded border border-zinc-200 text-[10px]"
-                                >
-                                  <option value="ft">ft</option>
-                                  <option value="m">m</option>
-                                  <option value="in">in</option>
-                                </select>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => updateItem(index, { qty: item.qty - 1 })}>
-                                  <MinusCircle className="w-4 h-4 text-zinc-400 hover:text-red-500" />
-                                </button>
-                                <span className="w-8 text-center font-bold">{item.qty}</span>
-                                <button type="button" onClick={() => updateItem(index, { qty: item.qty + 1 })}>
-                                  <PlusCircle className="w-4 h-4 text-zinc-400 hover:text-primary" />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-zinc-600">{formatCurrency(item.price)}</td>
-                            <td className="px-4 py-3 text-zinc-600">{item.gst}%</td>
-                            <td className="px-4 py-3 text-right font-bold text-zinc-900">
-                              {formatCurrency(item.price * item.qty * ((item.length && item.width) ? item.length * item.width : 1) * (1 + item.gst / 100))}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {(!formData.items || formData.items.length === 0) && (
-                      <div className="p-8 text-center text-zinc-400 italic text-sm">No items added yet.</div>
-                    )}
+                {/* AI Suggestion Engine */}
+                <div className="bg-indigo-900 p-8 rounded-2xl shadow-xl shadow-indigo-900/20 space-y-6 text-white relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
+                    <Calculator className="w-32 h-32 rotate-12" />
+                  </div>
+                  <div className="relative z-10 space-y-6">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-amber-400 rounded-lg">
+                        <Save className="w-5 h-5 text-indigo-900" />
+                      </div>
+                      <h3 className="text-xl font-bold">AI Suggestion Engine</h3>
+                    </div>
+                    <p className="text-indigo-100 text-sm leading-relaxed">
+                      Generate project-specific items based on scope and type with suggested tax rates.
+                    </p>
+                    <button 
+                      type="button"
+                      className="w-full bg-white text-indigo-900 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg"
+                    >
+                      Analyze Scope & Add Suggestions
+                    </button>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-8">
-                {/* Summary & Status */}
-                <div className="bg-zinc-900 text-white p-6 rounded-3xl space-y-6 shadow-xl shadow-zinc-900/20">
-                  <h3 className="font-bold text-lg">Estimate Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-zinc-400">
-                      <span>Subtotal</span>
-                      <span>{formatCurrency(formData.subtotal || 0)}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-zinc-400">Discount (%)</span>
-                        <input
-                          type="number"
-                          value={formData.discountPercentage || 0}
-                          onChange={e => {
-                            const perc = parseFloat(e.target.value) || 0;
-                            const totals = calculateTotal(formData.items || [], perc);
-                            setFormData(prev => ({ ...prev, discountPercentage: perc, ...totals }));
-                          }}
-                          className="w-16 px-2 py-1 bg-zinc-800 rounded border border-zinc-700 text-xs text-white outline-none focus:border-primary"
-                        />
-                      </div>
-                      <span className="text-red-400">-{formatCurrency(formData.discountAmount || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-zinc-400">
-                      <span>GST Amount</span>
-                      <span>{formatCurrency(formData.gstAmount || 0)}</span>
-                    </div>
-                    <div className="border-t border-zinc-800 pt-3 flex justify-between text-xl font-bold">
-                      <span>Total Amount</span>
-                      <span className="text-primary">{formatCurrency(formData.total || 0)}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Status</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['pending', 'approved', 'rejected', 'revision'].map(s => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, status: s as any }))}
-                          className={cn(
-                            "py-2 rounded-xl text-xs font-bold capitalize transition-all",
-                            formData.status === s ? "bg-primary text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                          )}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
+              {/* Terms & Conditions */}
+              <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-zinc-800">Work Details & Terms</h3>
                   <button
-                    type="submit"
-                    className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, terms: [...(prev.terms || []), ''] }))}
+                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline"
                   >
-                    <Save className="w-5 h-5" />
-                    {selectedEstimate ? 'Update Estimate' : 'Save Estimate'}
+                    <Plus className="w-3 h-3" />
+                    Add New Term
                   </button>
                 </div>
-
-                {/* Terms & Conditions */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-zinc-900">Terms & Conditions</h3>
-                  <div className="space-y-2">
-                    {formData.terms?.map((term, index) => (
-                      <div key={index} className="flex gap-2 group">
-                        <input
-                          type="text"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {formData.terms?.map((term, index) => (
+                    <div key={index} className="flex gap-3 group items-start">
+                      <span className="text-xs font-bold text-zinc-300 mt-2">{index + 1}</span>
+                      <div className="flex-1 relative">
+                        <textarea
                           value={term}
                           onChange={e => {
                             const newTerms = [...(formData.terms || [])];
                             newTerms[index] = e.target.value;
                             setFormData(prev => ({ ...prev, terms: newTerms }));
                           }}
-                          className="flex-1 px-3 py-2 bg-zinc-50 rounded-lg border border-zinc-100 text-sm outline-none focus:border-primary"
+                          className="w-full px-4 py-2 bg-zinc-50 rounded-xl border border-zinc-100 text-xs text-zinc-600 outline-none focus:border-primary resize-none h-16"
                         />
                         <button
                           type="button"
@@ -683,129 +1134,161 @@ export default function EstimateBuilder() {
                             newTerms.splice(index, 1);
                             setFormData(prev => ({ ...prev, terms: newTerms }));
                           }}
-                          className="p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                          className="absolute top-2 right-2 p-1 text-red-500 opacity-0 group-hover:opacity-100 transition-all bg-white rounded-md shadow-sm"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, terms: [...(prev.terms || []), ''] }))}
-                      className="text-primary text-xs font-bold flex items-center gap-1 hover:underline"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add Term
-                    </button>
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-8 py-4 rounded-2xl font-bold text-zinc-500 hover:bg-zinc-100 transition-all"
+                >
+                  Discard
+                </button>
+                <button
+                  type="submit"
+                  className="px-12 py-4 bg-primary text-white rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2"
+                >
+                  <Save className="w-5 h-5" />
+                  {selectedEstimate ? 'Update Estimate' : 'Save & Generate Estimate'}
+                </button>
+              </div>
             </form>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+    )}
 
       {/* Hidden PDF Template */}
       <div style={{ display: 'none' }}>
-        <div ref={pdfRef} style={{ width: '210mm', padding: '48px', backgroundColor: '#ffffff', color: '#18181b', fontFamily: 'sans-serif' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '48px' }}>
-            <div>
-              {company?.logoUrl && (
-                <img src={company.logoUrl} alt="Logo" style={{ width: '96px', height: '96px', marginBottom: '16px', objectFit: 'contain' }} referrerPolicy="no-referrer" />
-              )}
-              <h1 style={{ fontSize: '30px', fontWeight: 'bold', color: '#18181b', margin: 0 }}>{company?.name || 'Construction Estimate Pro'}</h1>
-              <p style={{ fontSize: '14px', color: '#71717a', whiteSpace: 'pre-line', marginTop: '8px' }}>{company?.address}</p>
-              <div style={{ fontSize: '12px', color: '#71717a', marginTop: '8px' }}>
-                {company?.gst && <p>GST: {company.gst}</p>}
-                {company?.pan && <p>PAN: {company.pan}</p>}
-                {company?.tan && <p>TAN: {company.tan}</p>}
+        <div ref={pdfRef} style={{ width: '210mm', padding: '20mm', backgroundColor: '#ffffff', color: '#18181b', fontFamily: 'sans-serif', position: 'relative', minHeight: '297mm' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid #fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#fbbf24' }}>
+                {company?.logoUrl ? (
+                  <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" />
+                ) : (
+                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'black' }}>{company?.name?.[0] || 'P'}</span>
+                )}
               </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <h2 style={{ fontSize: '36px', fontWeight: '900', color: '#e4e4e7', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', margin: 0 }}>Estimate</h2>
-              <div style={{ fontSize: '14px', color: '#18181b' }}>
-                <p><span style={{ fontWeight: 'bold' }}>Date:</span> {estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate(), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</p>
-                <p><span style={{ fontWeight: 'bold' }}>Estimate #:</span> {estimateToPrint?.id.slice(0, 8).toUpperCase()}</p>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '48px' }}>
-            <h3 style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', marginBottom: '8px' }}>Estimate For:</h3>
-            {estimateToPrint?.clientId && (
               <div>
-                <p style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{clients.find(c => c.id === estimateToPrint.clientId)?.name}</p>
-                <p style={{ fontSize: '14px', color: '#71717a', margin: '4px 0' }}>{clients.find(c => c.id === estimateToPrint.clientId)?.siteAddress}</p>
-                <p style={{ fontSize: '14px', color: '#71717a', margin: 0 }}>Mob: {clients.find(c => c.id === estimateToPrint.clientId)?.mob1}</p>
+                <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{company?.name || 'Pixar World Construction Private Limited'}</h1>
+                <p style={{ fontSize: '11px', color: '#475569', margin: '2px 0' }}>{company?.address || 'FF-08 Fortune Greens, Vadodara'}</p>
               </div>
-            )}
+            </div>
+            <div style={{ textAlign: 'right', fontSize: '9px', color: '#475569', lineHeight: '1.4' }}>
+              <p style={{ margin: 0 }}>CIN : {company?.cin || 'U43299GJ2024PTC150534'}</p>
+              <p style={{ margin: 0 }}>GST : {company?.gst || '24AAOCP8536H1Z4'}</p>
+              <p style={{ margin: 0 }}>Mo: {company?.phone || '+91 6354753565'}</p>
+              <p style={{ margin: 0 }}>Email: {company?.email || 'pixarworldconstruction@gmail.com'}</p>
+            </div>
           </div>
 
-          <table style={{ width: '100%', marginBottom: '48px', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #18181b', textAlign: 'left', fontSize: '14px', fontWeight: 'bold' }}>
-                <th style={{ padding: '16px 0' }}>Description</th>
-                <th style={{ padding: '16px 0', textAlign: 'center' }}>Dimensions</th>
-                <th style={{ padding: '16px 0', textAlign: 'center' }}>Qty</th>
-                <th style={{ padding: '16px 0', textAlign: 'right' }}>Rate</th>
-                <th style={{ padding: '16px 0', textAlign: 'center' }}>GST</th>
-                <th style={{ padding: '16px 0', textAlign: 'right' }}>Total</th>
+          <div style={{ height: '2px', backgroundColor: '#0f172a', marginBottom: '20px' }}></div>
+
+          {/* Title and Date */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #0f172a', padding: '8px 15px', marginBottom: '15px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, textDecoration: 'underline' }}>General Estimate</h2>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate(), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
+          </div>
+
+          {/* Customer Details Table */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '12px' }}>
+            <tbody>
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '20%' }}>Customer Name :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '45%' }}>{estimateToPrint?.clientName}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '15%' }}>Mob :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '20%' }}>{estimateToPrint?.clientMob1}</td>
               </tr>
-            </thead>
-            <tbody style={{ borderBottom: '1px solid #f4f4f5' }}>
-              {estimateToPrint?.items?.map((item, index) => (
-                <tr key={index} style={{ fontSize: '14px', borderBottom: '1px solid #f4f4f5' }}>
-                  <td style={{ padding: '16px 0', fontWeight: '500' }}>{item.name}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'center' }}>
-                    {item.length && item.width ? `${item.length} x ${item.width} ${item.unit}` : '-'}
-                  </td>
-                  <td style={{ padding: '16px 0', textAlign: 'center' }}>{item.qty}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'right' }}>{formatCurrency(item.price)}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'center' }}>{item.gst}%</td>
-                  <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 'bold' }}>
-                    {formatCurrency(item.price * item.qty * (item.length && item.width ? item.length * item.width : 1) * (1 + item.gst / 100))}
-                  </td>
-                </tr>
-              ))}
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>Site Address :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.siteAddress}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>EST No:</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.estimateNumber}</td>
+              </tr>
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>Project Type :</td>
+                <td colSpan={3} style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.propertyType}</td>
+              </tr>
             </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={5} style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', color: '#71717a' }}>Subtotal</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', fontWeight: 'bold' }}>{formatCurrency(estimateToPrint?.subtotal || 0)}</td>
-              </tr>
-              {estimateToPrint?.discountAmount && estimateToPrint.discountAmount > 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', color: '#ef4444' }}>Discount ({estimateToPrint.discountPercentage}%)</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', fontWeight: 'bold', color: '#ef4444' }}>-{formatCurrency(estimateToPrint.discountAmount)}</td>
-                </tr>
-              ) : null}
-              <tr>
-                <td colSpan={5} style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', color: '#71717a' }}>GST Amount</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '14px', fontWeight: 'bold' }}>{formatCurrency(estimateToPrint?.gstAmount || 0)}</td>
-              </tr>
-              <tr style={{ borderTop: '2px solid #18181b' }}>
-                <td colSpan={5} style={{ padding: '24px 0', textAlign: 'right', fontWeight: 'bold', fontSize: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</td>
-                <td style={{ padding: '24px 0', textAlign: 'right', fontWeight: 'bold', fontSize: '24px', color: '#10b981' }}>{formatCurrency(estimateToPrint?.total || 0)}</td>
-              </tr>
-            </tfoot>
           </table>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }}>
-            <div>
-              <h3 style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', marginBottom: '16px' }}>Terms & Conditions</h3>
-              <ul style={{ fontSize: '12px', color: '#71717a', paddingLeft: '16px', margin: 0 }}>
-                {estimateToPrint?.terms?.map((term, index) => (
-                  <li key={index} style={{ marginBottom: '8px' }}>{term}</li>
-                ))}
-              </ul>
+          {/* Items Table */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0', fontSize: '12px' }}>
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '5%' }}>Sr.</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '55%' }}>Item Name</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Unit</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Price</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '5%', textAlign: 'center' }}>Qty.</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '15%', textAlign: 'right' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {estimateToPrint?.items?.map((item, index) => (
+                <tr key={index}>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{index + 1}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px' }}>{item.name}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.unit}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.price}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.qty}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {item.total.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>SUB TOTAL</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {estimateToPrint?.subtotal.toLocaleString('en-IN')}</td>
+              </tr>
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>GST (ESTIMATED)</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>+ ₹ {estimateToPrint?.gstAmount.toLocaleString('en-IN')}</td>
+              </tr>
+              <tr style={{ backgroundColor: '#0f172a', color: 'white' }}>
+                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' }}>GRAND TOTAL ESTIMATED</td>
+                <td style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>₹ {estimateToPrint?.total.toLocaleString('en-IN')}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Work Details & Terms */}
+          <div style={{ marginTop: '30px', border: '1px solid #0f172a' }}>
+            <div style={{ backgroundColor: '#0f172a', color: 'white', padding: '6px 15px', textAlign: 'center', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>
+              Work Details & Terms
             </div>
-            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'end', justifyContent: 'end' }}>
-              {company?.ownerSignature && (
-                <img src={company.ownerSignature} alt="Signature" style={{ height: '64px', marginBottom: '8px', objectFit: 'contain' }} referrerPolicy="no-referrer" />
-              )}
-              <div style={{ width: '192px', borderBottom: '1px solid #18181b', marginBottom: '8px' }}></div>
-              <p style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Authorized Signatory</p>
-              <p style={{ fontSize: '10px', color: '#a1a1aa', marginTop: '4px', margin: 0 }}>For {company?.name}</p>
+            <div style={{ padding: '15px' }}>
+              <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+                <tbody>
+                  {estimateToPrint?.terms?.map((term, index) => (
+                    <tr key={index}>
+                      <td style={{ width: '20px', fontWeight: 'bold', verticalAlign: 'top', paddingBottom: '5px' }}>{index + 1}</td>
+                      <td style={{ paddingBottom: '5px' }}>{term}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Footer / Signatory */}
+          <div style={{ position: 'absolute', bottom: '20mm', left: '20mm', right: '20mm' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: '9px', color: '#94a3b8' }}>
+                <p style={{ margin: 0 }}>www.pixarworldconstruction.in</p>
+              </div>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderTop: '1px solid #0f172a', marginBottom: '5px' }}></div>
+                <p style={{ fontSize: '12px', fontWeight: 'bold', margin: 0 }}>Authorized Signatory</p>
+              </div>
             </div>
           </div>
         </div>
