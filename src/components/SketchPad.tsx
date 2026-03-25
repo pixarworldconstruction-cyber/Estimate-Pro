@@ -29,8 +29,10 @@ export default function SketchPad() {
   const stageRef = useRef<any>(null);
 
   const handleMouseDown = (e: any) => {
+    if (e.evt && e.evt.cancelable) e.evt.preventDefault();
     isDrawing.current = true;
-    const pos = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const pos = stage.getPointerPosition();
     
     let x = pos.x;
     let y = pos.y;
@@ -45,6 +47,7 @@ export default function SketchPad() {
 
   const handleMouseMove = (e: any) => {
     if (!isDrawing.current) return;
+    if (e.evt && e.evt.cancelable) e.evt.preventDefault();
     
     const stage = e.target.getStage();
     const point = stage.getPointerPosition();
@@ -185,8 +188,11 @@ export default function SketchPad() {
               width={window.innerWidth > 1024 ? 800 : window.innerWidth - 48}
               height={600}
               onMouseDown={handleMouseDown}
-              onMousemove={handleMouseMove}
-              onMouseup={handleMouseUp}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onTouchStart={handleMouseDown}
+              onTouchMove={handleMouseMove}
+              onTouchEnd={handleMouseUp}
               ref={stageRef}
             >
               <Layer>

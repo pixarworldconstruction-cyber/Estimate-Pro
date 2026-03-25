@@ -32,19 +32,36 @@ export default function NotificationManager() {
       const now = new Date();
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        const reminderDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
+        // Use dueDate instead of date
+        const reminderDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : new Date(data.dueDate);
         
         // If reminder is within the next 10 minutes and hasn't been notified
         const diffInMinutes = (reminderDate.getTime() - now.getTime()) / (1000 * 60);
         
         if (diffInMinutes > -5 && diffInMinutes < 10 && !notifiedReminders.has(doc.id)) {
+          const message = `Reminder: ${data.title}`;
+          const description = data.description || 'You have an upcoming task.';
+
           if (Notification.permission === 'granted') {
-            new Notification('Reminder: ' + data.title, {
-              body: data.description || 'You have an upcoming task.',
-              icon: '/favicon.ico'
-            });
-            notifiedReminders.add(doc.id);
+            try {
+              new Notification(message, {
+                body: description,
+                icon: '/favicon.ico'
+              });
+            } catch (e) {
+              console.error('Browser notification failed:', e);
+            }
           }
+          
+          // Always show toast as fallback/additional alert
+          import('sonner').then(({ toast }) => {
+            toast.info(message, {
+              description: description,
+              duration: 10000,
+            });
+          });
+
+          notifiedReminders.add(doc.id);
         }
       });
     });

@@ -77,9 +77,9 @@ export default function UnitConverter() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-8 rounded-[40px] shadow-sm border border-zinc-100"
+        className="bg-white p-6 md:p-8 rounded-[32px] md:rounded-[40px] shadow-sm border border-zinc-100"
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mb-8 md:mb-12">
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Category</label>
             <select
@@ -128,18 +128,18 @@ export default function UnitConverter() {
                 type="number"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className="w-full px-8 py-10 bg-zinc-50 border border-zinc-100 rounded-[32px] text-5xl font-black text-primary outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                className="w-full px-6 md:px-8 py-4 md:py-6 bg-zinc-50 border border-zinc-100 rounded-[20px] md:rounded-[24px] text-xl md:text-3xl font-black text-primary outline-none focus:ring-4 focus:ring-primary/10 transition-all"
               />
             </div>
           </div>
 
-          <div className="bg-zinc-900 p-10 rounded-[40px] text-white relative overflow-hidden">
+          <div className="bg-zinc-900 p-6 md:p-8 rounded-[24px] md:rounded-[32px] text-white relative overflow-hidden">
             <div className="relative z-10">
               <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Converted Result</div>
-              <div className="text-7xl font-black mb-2 truncate">
+              <div className="text-3xl md:text-5xl font-black mb-2 truncate">
                 {result.toLocaleString(undefined, { maximumFractionDigits: 4 })}
               </div>
-              <div className="text-xl font-bold text-primary uppercase tracking-widest">{toUnit}</div>
+              <div className="text-lg md:text-xl font-bold text-primary uppercase tracking-widest">{toUnit}</div>
             </div>
             <div className="absolute -right-10 -bottom-10 opacity-5">
               {category === 'Length' && <Ruler size={240} />}

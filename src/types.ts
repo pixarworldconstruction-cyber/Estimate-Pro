@@ -21,6 +21,7 @@ export interface Company {
   adminName?: string;
   adminEmail?: string;
   tempPassword?: string;
+  showWelcome?: boolean;
 }
 
 export interface Staff {

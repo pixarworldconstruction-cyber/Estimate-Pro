@@ -126,23 +126,31 @@ export default function AdminPanel() {
     const file = e.target.files?.[0];
     if (!file || !currentStaff?.companyId) return;
 
-    // Constraints: .jpg, .png, .webp, size < 1MB
+    // Constraints: .jpg, .png, .webp, size < 200KB
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       setErrorMessage('Only .jpg, .png and .webp files are allowed.');
       return;
     }
-    if (file.size > 1024 * 1024) {
-      setErrorMessage('File size must be less than 1MB.');
+    if (file.size > 200 * 1024) {
+      setErrorMessage('File size must be less than 200KB.');
       return;
     }
 
     setUploading(true);
     setSuccessMessage('Uploading logo...');
     setErrorMessage(null);
+
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timed out after 15 seconds')), 15000)
+    );
+
     try {
       const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
-      await uploadBytes(storageRef, file);
+      const uploadTask = uploadBytes(storageRef, file);
+      
+      await Promise.race([uploadTask, timeoutPromise]);
+      
       const url = await getDownloadURL(storageRef);
       setSettings(prev => ({ ...prev, logoUrl: url }));
       // Update Firestore immediately

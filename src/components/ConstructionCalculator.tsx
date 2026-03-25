@@ -592,21 +592,21 @@ export default function ConstructionCalculator() {
             key={tool.id}
             onClick={() => setActiveTool(tool.id)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all",
+              "flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold transition-all text-sm md:text-base",
               activeTool === tool.id 
                 ? "bg-primary text-white shadow-lg shadow-primary/20" 
                 : "bg-white text-zinc-500 hover:bg-zinc-50 border border-zinc-100"
             )}
           >
-            <tool.icon size={18} />
+            <tool.icon size={16} className="md:w-[18px] md:h-[18px]" />
             {tool.label}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
-        <div className="space-y-8">
-          <div className="bg-white p-10 rounded-[48px] border border-zinc-100 shadow-sm space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6 md:gap-8">
+        <div className="space-y-6 md:space-y-8">
+          <div className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[48px] border border-zinc-100 shadow-sm space-y-6 md:space-y-8">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
                 <CalcIcon size={20} />
@@ -616,7 +616,7 @@ export default function ConstructionCalculator() {
             {renderSpecs()}
           </div>
 
-          <div className="bg-white p-10 rounded-[48px] border border-zinc-100 shadow-sm space-y-8">
+          <div className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[48px] border border-zinc-100 shadow-sm space-y-6 md:space-y-8">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center">
                 <IndianRupee size={20} />
@@ -627,51 +627,51 @@ export default function ConstructionCalculator() {
           </div>
         </div>
 
-        <div className="bg-zinc-900 rounded-[56px] p-10 text-white flex flex-col h-full shadow-2xl shadow-zinc-900/40">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-10">Engineering Quantities</div>
+        <div className="bg-zinc-900 rounded-[32px] md:rounded-[40px] p-6 md:p-8 text-white flex flex-col h-full shadow-2xl shadow-zinc-900/40">
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-6 md:mb-8">Engineering Quantities</div>
           
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8">
             {results.primary.label && (
-              <div className="bg-white p-6 rounded-[32px] text-center">
-                <div className="text-4xl font-black text-zinc-900 mb-1">{results.primary.value}</div>
+              <div className="bg-white p-3 md:p-4 rounded-[20px] md:rounded-[24px] text-center">
+                <div className="text-xl md:text-2xl font-black text-zinc-900 mb-1">{results.primary.value}</div>
                 <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{results.primary.label}</div>
               </div>
             )}
             {results.secondary.label && (
-              <div className="bg-white p-6 rounded-[32px] text-center">
-                <div className="text-4xl font-black text-zinc-900 mb-1">{results.secondary.value}</div>
+              <div className="bg-white p-3 md:p-4 rounded-[20px] md:rounded-[24px] text-center">
+                <div className="text-xl md:text-2xl font-black text-zinc-900 mb-1">{results.secondary.value}</div>
                 <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{results.secondary.label}</div>
               </div>
             )}
             {results.tertiary.label && (
-              <div className="bg-white p-6 rounded-[32px] text-center">
-                <div className="text-4xl font-black text-zinc-900 mb-1">{results.tertiary.value}</div>
+              <div className="bg-white p-3 md:p-4 rounded-[20px] md:rounded-[24px] text-center">
+                <div className="text-xl md:text-2xl font-black text-zinc-900 mb-1">{results.tertiary.value}</div>
                 <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{results.tertiary.label}</div>
               </div>
             )}
             {results.quaternary.label && (
-              <div className="bg-white p-6 rounded-[32px] text-center">
-                <div className="text-4xl font-black text-zinc-900 mb-1">{results.quaternary.value}</div>
+              <div className="bg-white p-3 md:p-4 rounded-[20px] md:rounded-[24px] text-center">
+                <div className="text-xl md:text-2xl font-black text-zinc-900 mb-1">{results.quaternary.value}</div>
                 <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{results.quaternary.label}</div>
               </div>
             )}
           </div>
 
-          <div className="space-y-4 mb-10">
-            <div className="flex justify-between items-center bg-white/5 p-6 rounded-[24px] border border-white/10">
+          <div className="space-y-3 md:space-y-4 mb-6 md:mb-8">
+            <div className="flex justify-between items-center bg-white/5 p-3 md:p-4 rounded-[16px] md:rounded-[20px] border border-white/10">
               <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Total Labor</span>
-              <span className="text-2xl font-bold">₹{results.laborCost.toLocaleString()}</span>
+              <span className="text-base md:text-lg font-bold">₹{results.laborCost.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between items-center bg-white/5 p-6 rounded-[24px] border border-white/10">
+            <div className="flex justify-between items-center bg-white/5 p-3 md:p-4 rounded-[16px] md:rounded-[20px] border border-white/10">
               <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Total Material</span>
-              <span className="text-2xl font-bold">₹{results.materialCost.toLocaleString()}</span>
+              <span className="text-base md:text-lg font-bold">₹{results.materialCost.toLocaleString()}</span>
             </div>
           </div>
 
           <div className="mt-auto space-y-4">
-            <div className="bg-primary p-8 rounded-[40px] shadow-xl shadow-primary/20">
+            <div className="bg-primary p-4 md:p-6 rounded-[24px] md:rounded-[32px] shadow-xl shadow-primary/20">
               <div className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-2">Estimated Grand Total</div>
-              <div className="text-5xl font-black">₹{results.total.toLocaleString()}</div>
+              <div className="text-2xl md:text-3xl font-black">₹{results.total.toLocaleString()}</div>
             </div>
 
             <button 

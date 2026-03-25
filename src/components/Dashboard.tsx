@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, limit, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, where, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Users, 
   FileText, 
@@ -25,9 +25,28 @@ import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 import ConfirmModal from './ConfirmModal';
+import { motion } from 'motion/react';
 
-export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
+export default function Dashboard({ setActiveTab, setSelectedEstimateId }: { 
+  setActiveTab: (tab: string) => void;
+  setSelectedEstimateId?: (id: string | null, mode?: 'view' | 'edit') => void;
+}) {
   const { staff, company } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    if (company?.showWelcome) {
+      setShowWelcome(true);
+    }
+  }, [company?.showWelcome]);
+
+  const closeWelcome = async () => {
+    if (company?.id) {
+      await updateDoc(doc(db, 'companies', company.id), { showWelcome: false });
+    }
+    setShowWelcome(false);
+  };
+
   const [stats, setStats] = useState({
     totalClients: 0,
     totalEstimates: 0,
@@ -161,20 +180,20 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="bg-white p-10 rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
-          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Conversion Rate</div>
-          <div className="text-6xl font-black text-zinc-900">{stats.conversionRate.toFixed(0)}%</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+        <div className="bg-white p-6 md:p-10 rounded-3xl md:rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2 md:mb-4">Conversion Rate</div>
+          <div className="text-3xl md:text-4xl font-black text-zinc-900">{stats.conversionRate.toFixed(0)}%</div>
         </div>
         
-        <div className="bg-white p-10 rounded-[40px] shadow-sm border-l-4 border-l-primary border border-zinc-100 relative overflow-hidden group">
-          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Aggregate Value</div>
-          <div className="text-6xl font-black text-zinc-900">{formatCurrency(stats.totalEstimateValue)}</div>
+        <div className="bg-white p-6 md:p-10 rounded-3xl md:rounded-[40px] shadow-sm border-l-4 border-l-primary border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2 md:mb-4">Aggregate Value</div>
+          <div className="text-3xl md:text-4xl font-black text-zinc-900">{formatCurrency(stats.totalEstimateValue)}</div>
         </div>
 
-        <div className="bg-white p-10 rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
-          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-4">Business Value</div>
-          <div className="text-6xl font-black text-emerald-500">{formatCurrency(stats.totalRevenue)}</div>
+        <div className="bg-white p-6 md:p-10 rounded-3xl md:rounded-[40px] shadow-sm border border-zinc-100 relative overflow-hidden group">
+          <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2 md:mb-4">Business Value</div>
+          <div className="text-3xl md:text-4xl font-black text-emerald-500">{formatCurrency(stats.totalRevenue)}</div>
         </div>
       </div>
 
@@ -221,6 +240,13 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
                     <div className="flex items-center justify-center gap-3">
                       <div className="flex items-center gap-2 pr-4 border-r border-zinc-100">
                         <button 
+                          onClick={() => handleStatusUpdate(estimate.id, 'pending')}
+                          className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                          title="Set Pending"
+                        >
+                          <Clock className="w-4 h-4" />
+                        </button>
+                        <button 
                           onClick={() => handleStatusUpdate(estimate.id, 'approved')}
                           className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
                           title="Approve"
@@ -235,7 +261,16 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
                           <Ban className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => handleStatusUpdate(estimate.id, 'revision')}
+                          onClick={async () => {
+                            const estimateRef = doc(db, 'estimates', estimate.id);
+                            await updateDoc(estimateRef, { 
+                              status: 'revision',
+                              revisions: (estimate.revisions || 0) + 1,
+                              updatedAt: serverTimestamp()
+                            });
+                            if (setSelectedEstimateId) setSelectedEstimateId(estimate.id, 'edit');
+                            setActiveTab('estimates');
+                          }}
                           className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
                           title="Revision"
                         >
@@ -244,14 +279,20 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
                       </div>
                       <div className="flex items-center gap-2">
                         <button 
-                          onClick={() => setActiveTab('estimates')}
+                          onClick={() => {
+                            if (setSelectedEstimateId) setSelectedEstimateId(estimate.id, 'view');
+                            setActiveTab('estimates');
+                          }}
                           className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
                           title="View"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => setActiveTab('estimates')}
+                          onClick={() => {
+                            if (setSelectedEstimateId) setSelectedEstimateId(estimate.id, 'edit');
+                            setActiveTab('estimates');
+                          }}
                           className="p-3 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm"
                           title="Edit"
                         >
@@ -327,6 +368,45 @@ export default function Dashboard({ setActiveTab }: { setActiveTab: (tab: string
         message="Are you sure you want to delete this estimate? This action cannot be undone."
         confirmText="Delete"
       />
+
+      {showWelcome && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[40px] p-10 max-w-lg w-full shadow-2xl text-center space-y-6"
+          >
+            <div className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-10 h-10" />
+            </div>
+            <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Welcome to Your Trial!</h2>
+            <p className="text-zinc-600 leading-relaxed">
+              We've set up a <span className="font-bold text-primary">10-day trial</span> for you with <span className="font-bold">all features unlocked</span>. 
+              You can add up to <span className="font-bold">3 staff members</span> to your company during this period.
+            </p>
+            <div className="bg-zinc-50 p-6 rounded-3xl text-left space-y-3">
+              <div className="flex items-center gap-3 text-sm font-bold text-zinc-700">
+                <div className="w-2 h-2 bg-primary rounded-full" />
+                Full access to all engineering tools
+              </div>
+              <div className="flex items-center gap-3 text-sm font-bold text-zinc-700">
+                <div className="w-2 h-2 bg-primary rounded-full" />
+                Unlimited estimates & client management
+              </div>
+              <div className="flex items-center gap-3 text-sm font-bold text-zinc-700">
+                <div className="w-2 h-2 bg-primary rounded-full" />
+                Real-time reminders & insights
+              </div>
+            </div>
+            <button 
+              onClick={closeWelcome}
+              className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+            >
+              Get Started
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Package, PlusCircle, MinusCircle, History, CheckCircle, Clock, Eye, IndianRupee, Calculator } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Package, PlusCircle, MinusCircle, History, CheckCircle, Clock, Eye, IndianRupee, Calculator, Bell, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Estimate, Client, Item, EstimateItem, Company } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { formatCurrency, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 
-export default function EstimateBuilder() {
+export default function EstimateBuilder({ initialEstimateId, initialMode, onClearInitialId }: { 
+  initialEstimateId?: string | null;
+  initialMode?: 'view' | 'edit';
+  onClearInitialId?: () => void;
+}) {
   const { company, staff } = useAuth();
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -107,6 +113,19 @@ export default function EstimateBuilder() {
       unsubItems();
     };
   }, [staff]);
+
+  useEffect(() => {
+    if (initialEstimateId && estimates.length > 0) {
+      const estimate = estimates.find(e => e.id === initialEstimateId);
+      if (estimate) {
+        setSelectedEstimate(estimate);
+        setFormData(estimate);
+        setIsModalOpen(true);
+        setIsPreviewMode(initialMode === 'view');
+        if (onClearInitialId) onClearInitialId();
+      }
+    }
+  }, [initialEstimateId, initialMode, estimates, onClearInitialId]);
 
   const calculateTotal = (items: EstimateItem[], discountType: 'percentage' | 'fixed' = 'percentage', discountValue: number = 0, isGstManual: boolean = false, gstOverride: number = 0) => {
     const subtotal = items.reduce((acc, item) => acc + item.total, 0);
@@ -215,38 +234,100 @@ export default function EstimateBuilder() {
   const [estimateToPrint, setEstimateToPrint] = useState<Estimate | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderFormData, setReminderFormData] = useState({
+    clientId: '',
+    title: '',
+    dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+  });
+
+  const handleCreateReminder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staff?.companyId || !reminderFormData.clientId) return;
+
+    try {
+      await addDoc(collection(db, 'reminders'), {
+        ...reminderFormData,
+        companyId: staff.companyId,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        createdBy: staff.uid,
+        createdByName: staff.name
+      });
+      toast.success('Reminder set successfully');
+      setIsReminderModalOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'reminders');
+      toast.error('Failed to set reminder');
+    }
+  };
+
   const generateCanvas = async () => {
     const element = pdfRef.current;
     if (!element) return null;
     
-    // Temporarily show the element off-screen to allow html2canvas to capture it
-    element.style.display = 'block';
-    element.style.position = 'fixed';
-    element.style.left = '-9999px';
-    element.style.top = '0';
-    
     try {
+      // Wait for images to load
+      const images = element.querySelectorAll('img');
+      await Promise.all(Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+
+      // Extra wait for layout and fonts
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       const canvas = await html2canvas(element, { 
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          // Remove all style and link tags to prevent html2canvas from parsing oklch colors in Tailwind v4
+          const styles = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
+          styles.forEach(s => s.remove());
+
+          const clonedElement = clonedDoc.querySelector('[data-pdf-content]');
+          if (clonedElement instanceof HTMLElement) {
+            clonedElement.style.display = 'block';
+            clonedElement.style.visibility = 'visible';
+            clonedElement.style.position = 'relative';
+            clonedElement.style.left = '0';
+            clonedElement.style.top = '0';
+            clonedElement.style.margin = '0';
+            clonedElement.style.padding = '20mm';
+            clonedElement.style.width = '210mm';
+          }
+        }
       });
+
       return canvas;
-    } finally {
-      element.style.display = 'none';
+    } catch (error) {
+      console.error('Canvas generation failed:', error);
+      return null;
     }
   };
 
   const handleDownloadPDF = async (estimate: Estimate) => {
+    if (isGenerating) return;
+    setIsGenerating(true);
     setEstimateToPrint(estimate);
-    // Wait for state update and render
-    await new Promise(resolve => setTimeout(resolve, 300));
     
-    const canvas = await generateCanvas();
-    if (!canvas) return;
-
     try {
+      // Wait for state update and render
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const canvas = await generateCanvas();
+      if (!canvas) {
+        toast.error('Failed to generate PDF canvas');
+        return;
+      }
+
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
@@ -268,79 +349,151 @@ export default function EstimateBuilder() {
         heightLeft -= pageHeight;
       }
 
-      pdf.save(`Estimate_${estimate.id.slice(0, 5)}.pdf`);
+      pdf.save(`Estimate_${estimate.estimateNumber || estimate.id?.slice(0, 5)}.pdf`);
     } catch (err) {
       console.error('PDF generation failed:', err);
+      toast.error('Failed to generate PDF');
     } finally {
       setEstimateToPrint(null);
+      setIsGenerating(false);
     }
   };
 
   const handleDownloadImage = async (estimate: Estimate, format: 'png' | 'jpg') => {
+    if (isGenerating) return;
+    setIsGenerating(true);
     setEstimateToPrint(estimate);
-    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-    const canvas = await generateCanvas();
-    if (!canvas) return;
+      const canvas = await generateCanvas();
+      if (!canvas) {
+        toast.error('Failed to generate image canvas');
+        return;
+      }
 
-    const imgData = canvas.toDataURL(`image/${format === 'jpg' ? 'jpeg' : 'png'}`);
-    const link = document.createElement('a');
-    link.download = `Estimate_${estimate.id.slice(0, 5)}.${format}`;
-    link.href = imgData;
-    link.click();
-    setEstimateToPrint(null);
+      const imgData = canvas.toDataURL(`image/${format === 'jpg' ? 'jpeg' : 'png'}`);
+      const link = document.createElement('a');
+      link.download = `Estimate_${estimate.estimateNumber || estimate.id?.slice(0, 5)}.${format}`;
+      link.href = imgData;
+      link.click();
+    } catch (error) {
+      console.error('Image generation failed:', error);
+      toast.error('Failed to generate image');
+    } finally {
+      setEstimateToPrint(null);
+      setIsGenerating(false);
+    }
   };
 
   const handleViewPDF = async (estimate: Estimate) => {
+    if (isGenerating) return;
+    setIsGenerating(true);
     setEstimateToPrint(estimate);
-    await new Promise(resolve => setTimeout(resolve, 100));
     
-    const canvas = await generateCanvas();
-    if (!canvas) return;
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const canvas = await generateCanvas();
+      if (!canvas) {
+        toast.error('Failed to generate PDF preview');
+        return;
+      }
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-    
-    const pdfBlob = pdf.output('blob');
-    const url = URL.createObjectURL(pdfBlob);
-    window.open(url, '_blank');
-    setEstimateToPrint(null);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      // Multi-page support for view as well
+      let heightLeft = pdfHeight;
+      let position = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      const pdfBlob = pdf.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      const newWindow = window.open(url, '_blank');
+      if (!newWindow) {
+        // Fallback if popup is blocked
+        pdf.save(`Estimate_${estimate.estimateNumber || estimate.id?.slice(0, 5)}.pdf`);
+      }
+    } catch (err) {
+      console.error('PDF view failed:', err);
+      toast.error('Failed to view PDF');
+    } finally {
+      setEstimateToPrint(null);
+      setIsGenerating(false);
+    }
   };
 
   const handleShare = async (estimate: Estimate, format: 'png' | 'jpg' | 'pdf' = 'png') => {
+    if (isGenerating) return;
+    setIsGenerating(true);
     setEstimateToPrint(estimate);
-    await new Promise(resolve => setTimeout(resolve, 100));
-
+    
     try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const canvas = await generateCanvas();
-      if (!canvas) return;
+      if (!canvas) {
+        toast.error('Failed to generate sharing canvas');
+        return;
+      }
 
       let file: File;
+      const fileName = `Estimate_${estimate.estimateNumber || estimate.id?.slice(0, 5)}`;
+
       if (format === 'pdf') {
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF('p', 'mm', 'a4');
         const imgProps = pdf.getImageProperties(imgData);
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        
+        // Multi-page support
+        let heightLeft = pdfHeight;
+        let position = 0;
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft >= 0) {
+          position = heightLeft - pdfHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+          heightLeft -= pageHeight;
+        }
+
         const pdfBlob = pdf.output('blob');
-        file = new File([pdfBlob], `Estimate_${estimate.id.slice(0, 5)}.pdf`, { type: 'application/pdf' });
+        file = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
       } else {
         const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType));
-        if (!blob) return;
-        file = new File([blob], `Estimate_${estimate.id.slice(0, 5)}.${format}`, { type: mimeType });
+        if (!blob) {
+          toast.error('Failed to create image blob');
+          return;
+        }
+        file = new File([blob], `${fileName}.${format}`, { type: mimeType });
       }
       
       if (navigator.share && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: 'Estimate',
-          text: `Estimate for ${clients.find(c => c.id === estimate.clientId)?.name}`
+          text: `Estimate for ${clients.find(c => c.id === estimate.clientId)?.name || estimate.clientName}`
         });
       } else {
         const url = URL.createObjectURL(file);
@@ -348,11 +501,92 @@ export default function EstimateBuilder() {
         link.download = file.name;
         link.href = url;
         link.click();
+        toast.info('Sharing not supported, downloading instead');
       }
     } catch (error) {
       console.error('Sharing failed', error);
+      toast.error('Failed to share estimate');
     } finally {
       setEstimateToPrint(null);
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadExcel = (estimate: Estimate) => {
+    const data = [
+      ['Estimate Number', estimate.estimateNumber],
+      ['Date', format(new Date(), 'dd/MM/yyyy')],
+      ['Customer Name', estimate.clientName],
+      ['Mobile', estimate.clientMob1],
+      ['Site Address', estimate.siteAddress],
+      [''],
+      ['Sr.', 'Item Name', 'Unit', 'Price', 'Qty', 'Total'],
+      ...(estimate.items?.map((item, index) => [
+        index + 1,
+        item.name,
+        item.unit,
+        item.price,
+        item.qty,
+        item.total
+      ]) || []),
+      [''],
+      ['', '', '', '', 'Subtotal', estimate.subtotal],
+      ['', '', '', '', 'GST', estimate.gstAmount],
+      ['', '', '', '', 'Grand Total', estimate.total],
+      [''],
+      ['Terms & Conditions'],
+      ...(estimate.terms?.map((term, index) => [`${index + 1}. ${term}`]) || [])
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Estimate');
+    XLSX.writeFile(wb, `Estimate_${estimate.estimateNumber}.xlsx`);
+  };
+
+  const handlePrint = async (estimate: Estimate) => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setEstimateToPrint(estimate);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const canvas = await generateCanvas();
+      if (!canvas) {
+        toast.error('Failed to generate print canvas');
+        return;
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const windowContent = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Print Estimate</title></head>
+          <body style="margin: 0; display: flex; justify-content: center; align-items: center;">
+            <img src="${imgData}" style="width: 100%; max-width: 800px;" />
+            <script>
+              window.onload = () => {
+                window.print();
+                window.onafterprint = () => window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(windowContent);
+        printWindow.document.close();
+      } else {
+        toast.error('Popup blocked. Please allow popups to print.');
+      }
+    } catch (error) {
+      console.error('Print failed', error);
+      toast.error('Failed to print estimate');
+    } finally {
+      setEstimateToPrint(null);
+      setIsGenerating(false);
     }
   };
 
@@ -374,13 +608,9 @@ export default function EstimateBuilder() {
         <button
           onClick={() => {
             setSelectedEstimate(null);
-            setFormData({ 
-              clientId: '', items: [], total: 0, status: 'pending', revisions: 0, 
-              terms: [
-                '50% advance payment required to start the project.',
-                'GST will be charged extra as applicable.',
-                'Validity of this estimate is 15 days.'
-              ] 
+            setFormData({
+              ...initialFormData,
+              estimateNumber: `EST-${Math.floor(100000 + Math.random() * 900000)}`
             });
             setIsModalOpen(true);
           }}
@@ -415,7 +645,7 @@ export default function EstimateBuilder() {
                   <div>
                     <h3 className="font-bold text-zinc-900">{client?.name || 'Unknown Client'}</h3>
                     <div className="text-xs text-zinc-400">
-                      {estimate.createdAt ? format(estimate.createdAt.toDate(), 'dd MMM yyyy') : 'Just now'}
+                      {estimate.createdAt ? format(estimate.createdAt.toDate?.() || new Date(estimate.createdAt), 'dd MMM yyyy') : 'Just now'}
                       {estimate.createdByName && <span className="ml-2">• By {estimate.createdByName}</span>}
                     </div>
                   </div>
@@ -491,6 +721,20 @@ export default function EstimateBuilder() {
                   >
                     <Share2 className="w-5 h-5" />
                   </button>
+                  <button 
+                    onClick={() => {
+                      setReminderFormData({
+                        clientId: estimate.clientId,
+                        title: `Follow up: Estimate ${estimate.estimateNumber || estimate.id.slice(0, 5)}`,
+                        dueDate: format(new Date(Date.now() + 86400000), "yyyy-MM-dd'T'HH:mm") // Tomorrow
+                      });
+                      setIsReminderModalOpen(true);
+                    }}
+                    className="p-2 bg-zinc-50 text-zinc-600 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+                    title="Set Reminder"
+                  >
+                    <Bell className="w-5 h-5" />
+                  </button>
                 </div>
                 <button 
                   onClick={() => setEstimateToDelete(estimate.id)}
@@ -506,12 +750,12 @@ export default function EstimateBuilder() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 overflow-y-auto">
-          <div className="bg-zinc-50 w-full max-w-7xl rounded-3xl shadow-2xl my-8">
-            <div className="p-8 border-b border-zinc-200 bg-white rounded-t-3xl flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-zinc-50 w-full max-w-7xl h-full max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="p-8 border-b border-zinc-200 bg-white rounded-t-3xl flex justify-between items-center shrink-0">
               <div className="flex items-center gap-4">
                 <h2 className="text-2xl font-bold text-zinc-900">
-                  {isPreviewMode ? 'Estimate Preview' : 'Create Professional Estimate'}
+                  {isPreviewMode ? 'Estimate Preview' : (selectedEstimate ? `Editing Estimate ${selectedEstimate.estimateNumber}` : 'Create Professional Estimate')}
                 </h2>
                 <div className="flex bg-zinc-100 p-1 rounded-xl">
                   <button
@@ -536,16 +780,96 @@ export default function EstimateBuilder() {
                   </button>
                 </div>
               </div>
-              <button onClick={() => { setIsModalOpen(false); setIsPreviewMode(false); }} className="p-2 hover:bg-zinc-100 rounded-full transition-all">
-                <MinusCircle className="w-6 h-6 text-zinc-400" />
+              <button 
+                onClick={() => { setIsModalOpen(false); setIsPreviewMode(false); }} 
+                className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-100 rounded-xl transition-all text-zinc-500 font-bold text-sm"
+              >
+                <MinusCircle className="w-5 h-5" />
+                {selectedEstimate ? 'Cancel Edit' : 'Close'}
               </button>
             </div>
 
-            {isPreviewMode ? (
-              <div className="p-8 space-y-8 bg-zinc-100 min-h-[600px] flex flex-col items-center">
-                <div className="bg-white shadow-2xl rounded-sm w-full max-w-[210mm] min-h-[297mm] p-[20mm] origin-top transform scale-[0.85] md:scale-100">
-                  {/* Reuse the PDF template logic here for preview */}
-                  <div className="space-y-6">
+            <div className="flex-1 overflow-y-auto">
+              {isPreviewMode ? (
+                <div className="p-8 space-y-8 bg-zinc-100 min-h-full flex flex-col items-center">
+                <div className="flex flex-col gap-6 w-full max-w-4xl">
+                  <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex gap-2">
+                      <div className="group relative">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold hover:bg-zinc-800 transition-all">
+                          <Download className="w-4 h-4" />
+                          Download
+                        </button>
+                        <div className="absolute top-full left-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-zinc-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <button onClick={() => handleDownloadPDF(selectedEstimate!)} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <FileText className="w-4 h-4" /> PDF Document
+                          </button>
+                          <button onClick={() => handleDownloadImage(selectedEstimate!, 'png')} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <Eye className="w-4 h-4" /> PNG Image
+                          </button>
+                          <button onClick={() => handleDownloadImage(selectedEstimate!, 'jpg')} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <Eye className="w-4 h-4" /> JPG Image
+                          </button>
+                          <button onClick={() => handleDownloadExcel(selectedEstimate!)} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <History className="w-4 h-4" /> Excel Sheet
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="group relative">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 text-zinc-600 rounded-xl text-xs font-bold hover:bg-zinc-50 transition-all">
+                          <Share2 className="w-4 h-4" />
+                          Share
+                        </button>
+                        <div className="absolute top-full left-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-zinc-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <button onClick={() => handleShare(selectedEstimate!, 'pdf')} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <FileText className="w-4 h-4" /> Share PDF
+                          </button>
+                          <button onClick={() => handleShare(selectedEstimate!, 'png')} className="w-full px-4 py-2 text-left text-xs font-bold text-zinc-600 hover:bg-zinc-50 hover:text-primary transition-all flex items-center gap-2">
+                            <Eye className="w-4 h-4" /> Share Image
+                          </button>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => handlePrint(selectedEstimate!)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 text-zinc-600 rounded-xl text-xs font-bold hover:bg-zinc-50 transition-all"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Print
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setIsPreviewMode(false)}
+                        className="px-6 py-2 bg-white border border-zinc-200 text-zinc-600 font-bold rounded-xl hover:bg-zinc-50 transition-all text-xs"
+                      >
+                        Back to Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsModalOpen(false);
+                          setIsPreviewMode(false);
+                          setFormData(initialFormData);
+                          if (onClearInitialId) onClearInitialId();
+                        }}
+                        className="px-6 py-2 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all text-xs"
+                      >
+                        Finish & Close
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-100 p-4 md:p-12 rounded-[40px] shadow-inner overflow-auto max-h-[70vh]">
+                    <div 
+                      ref={pdfRef}
+                      data-pdf-content
+                      className="bg-white mx-auto shadow-2xl p-8 md:p-12 space-y-8"
+                      style={{ width: '210mm', minHeight: '297mm' }}
+                    >
+                      {/* Reuse the PDF template logic here for preview */}
+                      <div className="space-y-6">
                     <div className="flex justify-between items-center border-b-2 border-zinc-900 pb-4">
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center overflow-hidden">
@@ -570,7 +894,7 @@ export default function EstimateBuilder() {
 
                     <div className="flex justify-between items-center border border-zinc-900 p-2">
                       <h2 className="text-sm font-bold underline uppercase">General Estimate</h2>
-                      <p className="text-xs font-bold">Date: {format(new Date(), 'dd/MM/yyyy')}</p>
+                      <p className="text-xs font-bold">Date: {formData.createdAt ? format(formData.createdAt.toDate?.() || new Date(formData.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
                     </div>
 
                     <table className="w-full border-collapse text-xs">
@@ -582,10 +906,34 @@ export default function EstimateBuilder() {
                           <td className="border border-zinc-900 p-2">{formData.clientMob1}</td>
                         </tr>
                         <tr>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Alt Mobile:</td>
+                          <td className="border border-zinc-900 p-2">{formData.clientMob2 || 'N/A'}</td>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">PAN No:</td>
+                          <td className="border border-zinc-900 p-2">{formData.clientPan || 'N/A'}</td>
+                        </tr>
+                        <tr>
                           <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Site Address:</td>
                           <td className="border border-zinc-900 p-2">{formData.siteAddress}</td>
                           <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">EST No:</td>
-                          <td className="border border-zinc-900 p-2">{formData.estimateNumber}</td>
+                          <td className="border border-zinc-900 p-2 font-bold text-primary">{formData.estimateNumber}</td>
+                        </tr>
+                        <tr>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Current Address:</td>
+                          <td className="border border-zinc-900 p-2">{formData.currentAddress || 'N/A'}</td>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Date:</td>
+                          <td className="border border-zinc-900 p-2">{format(new Date(), 'dd/MM/yyyy')}</td>
+                        </tr>
+                        <tr>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Property Type:</td>
+                          <td className="border border-zinc-900 p-2">{formData.propertyType}</td>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Scope of Work:</td>
+                          <td className="border border-zinc-900 p-2">{formData.scopeOfWork}</td>
+                        </tr>
+                        <tr>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Est. Completion:</td>
+                          <td className="border border-zinc-900 p-2">{formData.completionTime || 'N/A'}</td>
+                          <td className="border border-zinc-900 p-2 font-bold bg-zinc-50">Budget:</td>
+                          <td className="border border-zinc-900 p-2 font-bold">{formData.budget || 'N/A'}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -609,7 +957,7 @@ export default function EstimateBuilder() {
                             <td className="border border-zinc-900 p-2 text-center uppercase">{item.unit}</td>
                             <td className="border border-zinc-900 p-2 text-center">₹{item.price}</td>
                             <td className="border border-zinc-900 p-2 text-center">{item.qty}</td>
-                            <td className="border border-zinc-900 p-2 text-right font-bold">₹{item.total.toLocaleString('en-IN')}</td>
+                            <td className="border border-zinc-900 p-2 text-right font-bold">₹{item.total?.toLocaleString('en-IN')}</td>
                           </tr>
                         ))}
                         <tr>
@@ -640,31 +988,76 @@ export default function EstimateBuilder() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setIsPreviewMode(false)}
-                    className="px-8 py-3 bg-white border border-zinc-200 text-zinc-600 font-bold rounded-xl hover:bg-zinc-50 transition-all"
-                  >
-                    Back to Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setIsPreviewMode(false);
-                      setFormData(initialFormData);
-                    }}
-                    className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all"
-                  >
-                    Finish & Close
-                  </button>
-                </div>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="p-8 space-y-8">
-              {/* Customer & Project Profile */}
-              <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-8">
-                <div className="flex items-center gap-4 border-b border-zinc-100 pb-4">
-                  <h3 className="text-sm font-bold text-primary uppercase tracking-widest">Customer & Project Profile</h3>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 space-y-8 bg-zinc-100 min-h-full flex flex-col items-center">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full max-w-4xl">
+                  {/* Customer & Project Profile */}
+            <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-100 pb-4 gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                      <User className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-primary uppercase tracking-widest">Customer & Project Profile</h3>
+                      <p className="text-[10px] text-zinc-500 font-medium">Manage customer details and project scope</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Select Existing Client:</span>
+                      <select
+                        onChange={e => {
+                          const client = clients.find(c => c.id === e.target.value);
+                          if (client) {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              clientId: client.id,
+                              clientName: client.name,
+                              clientMob1: client.mob1,
+                              clientMob2: client.mob2 || '',
+                              clientPan: client.pan || '',
+                              siteAddress: client.siteAddress,
+                              currentAddress: client.currentAddress,
+                              propertyType: client.projectCategory || 'Resident',
+                              scopeOfWork: client.projectType || 'New Box Construction',
+                              budget: client.budget?.toString() || ''
+                            }));
+                          }
+                        }}
+                        className="text-xs border border-zinc-200 rounded-lg px-3 py-1.5 outline-none focus:border-primary transition-all font-medium bg-zinc-50 min-w-[200px]"
+                        value={formData.clientId || ''}
+                      >
+                        <option value="">-- Select from Directory --</option>
+                        {clients.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} ({c.mob1})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        clientId: '',
+                        clientName: '',
+                        clientMob1: '',
+                        clientMob2: '',
+                        clientPan: '',
+                        siteAddress: '',
+                        currentAddress: '',
+                        propertyType: 'Resident',
+                        scopeOfWork: 'New Box Construction',
+                        budget: ''
+                      }))}
+                      className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                      title="Clear Customer Data"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6">
@@ -673,32 +1066,11 @@ export default function EstimateBuilder() {
                     <input
                       type="text"
                       value={formData.clientName}
-                      onChange={e => {
-                        const val = e.target.value;
-                        const client = clients.find(c => c.name === val);
-                        if (client) {
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            clientId: client.id,
-                            clientName: client.name,
-                            clientMob1: client.mob1,
-                            clientMob2: client.mob2 || '',
-                            clientPan: client.pan || '',
-                            siteAddress: client.siteAddress,
-                            currentAddress: client.currentAddress
-                          }));
-                        } else {
-                          setFormData(prev => ({ ...prev, clientName: val }));
-                        }
-                      }}
-                      list="client-list"
+                      onChange={e => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
                       className="w-full py-2 border-b border-zinc-200 outline-none focus:border-primary transition-all text-sm font-medium"
-                      placeholder="Customer Name"
+                      placeholder="Enter Customer Name"
                       required
                     />
-                    <datalist id="client-list">
-                      {clients.map(c => <option key={c.id} value={c.name} />)}
-                    </datalist>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mobile Number</label>
@@ -796,7 +1168,41 @@ export default function EstimateBuilder() {
                     />
                   </div>
                 </div>
-              </div>
+
+                {!formData.clientId && formData.clientName && (
+                  <div className="pt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!staff?.companyId) return;
+                        try {
+                          const docRef = await addDoc(collection(db, 'clients'), {
+                            companyId: staff.companyId,
+                            name: formData.clientName,
+                            mob1: formData.clientMob1,
+                            mob2: formData.clientMob2,
+                            pan: formData.clientPan,
+                            siteAddress: formData.siteAddress,
+                            currentAddress: formData.currentAddress,
+                            projectType: formData.scopeOfWork,
+                            projectCategory: formData.propertyType,
+                            budget: Number(formData.budget) || 0,
+                            createdAt: serverTimestamp()
+                          });
+                          setFormData(prev => ({ ...prev, clientId: docRef.id }));
+                          toast.success('Client saved to directory');
+                        } catch (error) {
+                          toast.error('Failed to save client');
+                        }
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      Save to Client Directory
+                    </button>
+                  </div>
+                )}
+            </div>
 
               {/* Measurement & Pricing Table */}
               <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
@@ -1161,14 +1567,16 @@ export default function EstimateBuilder() {
                 </button>
               </div>
             </form>
-          )}
+          </div>
+        )}
         </div>
       </div>
-    )}
+    </div>
+  )}
 
       {/* Hidden PDF Template */}
-      <div style={{ display: 'none' }}>
-        <div ref={pdfRef} style={{ width: '210mm', padding: '20mm', backgroundColor: '#ffffff', color: '#18181b', fontFamily: 'sans-serif', position: 'relative', minHeight: '297mm' }}>
+      <div style={{ position: 'fixed', top: '-9999px', left: '-9999px', zIndex: -100 }}>
+        <div ref={pdfRef} data-pdf-content style={{ width: '210mm', padding: '20mm', backgroundColor: '#ffffff', color: '#18181b', fontFamily: 'sans-serif', position: 'relative', minHeight: '297mm' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -1197,27 +1605,47 @@ export default function EstimateBuilder() {
           {/* Title and Date */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #0f172a', padding: '8px 15px', marginBottom: '15px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, textDecoration: 'underline' }}>General Estimate</h2>
-            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate(), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate?.() || new Date(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
           </div>
 
           {/* Customer Details Table */}
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '12px' }}>
             <tbody>
               <tr>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '20%' }}>Customer Name :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '20%', backgroundColor: '#f8fafc' }}>Customer Name :</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '45%' }}>{estimateToPrint?.clientName}</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '15%' }}>Mob :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '15%', backgroundColor: '#f8fafc' }}>Mob :</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '20%' }}>{estimateToPrint?.clientMob1}</td>
               </tr>
               <tr>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>Site Address :</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.siteAddress}</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>EST No:</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.estimateNumber}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Alt Mobile :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.clientMob2 || 'N/A'}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>PAN No :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.clientPan || 'N/A'}</td>
               </tr>
               <tr>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>Project Type :</td>
-                <td colSpan={3} style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.propertyType}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Site Address :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.siteAddress}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>EST No :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>{estimateToPrint?.estimateNumber}</td>
+              </tr>
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Current Address :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.currentAddress || 'N/A'}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Date :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate?.() || new Date(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</td>
+              </tr>
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Property Type :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.propertyType}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Scope of Work :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.scopeOfWork}</td>
+              </tr>
+              <tr>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Est. Completion :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.completionTime || 'N/A'}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Budget :</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>{estimateToPrint?.budget || 'N/A'}</td>
               </tr>
             </tbody>
           </table>
@@ -1242,20 +1670,20 @@ export default function EstimateBuilder() {
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.unit}</td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.price}</td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.qty}</td>
-                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {item.total.toLocaleString('en-IN')}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {item.total?.toLocaleString('en-IN')}</td>
                 </tr>
               ))}
               <tr>
                 <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>SUB TOTAL</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {estimateToPrint?.subtotal.toLocaleString('en-IN')}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {estimateToPrint?.subtotal?.toLocaleString('en-IN')}</td>
               </tr>
               <tr>
                 <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>GST (ESTIMATED)</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>+ ₹ {estimateToPrint?.gstAmount.toLocaleString('en-IN')}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>+ ₹ {estimateToPrint?.gstAmount?.toLocaleString('en-IN')}</td>
               </tr>
               <tr style={{ backgroundColor: '#0f172a', color: 'white' }}>
                 <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' }}>GRAND TOTAL ESTIMATED</td>
-                <td style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>₹ {estimateToPrint?.total.toLocaleString('en-IN')}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>₹ {estimateToPrint?.total?.toLocaleString('en-IN')}</td>
               </tr>
             </tbody>
           </table>
@@ -1302,6 +1730,58 @@ export default function EstimateBuilder() {
         message="Are you sure you want to delete this estimate? This action cannot be undone."
         confirmText="Delete"
       />
+
+      {/* Quick Reminder Modal */}
+      {isReminderModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-[40px] p-8 max-w-md w-full shadow-2xl space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Set Follow-up Reminder</h2>
+              <button onClick={() => setIsReminderModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full transition-all">
+                <X className="w-6 h-6 text-zinc-400" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateReminder} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Reminder Title</label>
+                <input
+                  type="text"
+                  required
+                  value={reminderFormData.title}
+                  onChange={e => setReminderFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  placeholder="e.g., Call client for approval"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Due Date & Time</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={reminderFormData.dueDate}
+                  onChange={e => setReminderFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsReminderModalOpen(false)}
+                  className="flex-1 px-6 py-3 border border-zinc-200 text-zinc-600 font-bold rounded-2xl hover:bg-zinc-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                >
+                  Set Reminder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

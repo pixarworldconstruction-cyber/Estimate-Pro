@@ -9,8 +9,16 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Staff, Company } from '../types';
+
+const ALL_FEATURES = [
+  'clients', 'estimates', 'items', 'reminders', 'insights', 
+  'converter', 'calculator', 'sketch', 'construction-calc',
+  'calc-brick', 'calc-plaster', 'calc-paint', 'calc-gypsum', 
+  'calc-electrical', 'calc-flooring', 'calc-stone', 'calc-doors', 
+  'calc-windows', 'calc-frame', 'calc-kitchen', 'calc-plumbing'
+];
 
 interface AuthContextType {
   user: User | null;
@@ -162,13 +170,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       await deleteDoc(pendingStaffDoc.ref);
     } else {
+      let finalCompanyId = companyId;
+      let role = 'staff';
+
+      // If no companyId provided, create a new company (Trial)
+      if (!companyId) {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 10); // 10 days trial
+
+        const companyDoc = await addDoc(collection(db, 'companies'), {
+          name: `${name}'s Company`,
+          status: 'trial',
+          planName: 'Trial Plan',
+          expiryDate: expiryDate.toISOString(),
+          features: ALL_FEATURES,
+          staffLimit: 3,
+          showWelcome: true,
+          createdAt: serverTimestamp(),
+          adminEmail: email,
+          adminName: name
+        });
+        finalCompanyId = companyDoc.id;
+        role = 'admin';
+      }
+
       // Create new staff record
       await setDoc(doc(db, 'staff', user.uid), {
         name,
         email,
-        role: 'staff',
+        role,
         uid: user.uid,
-        companyId
+        companyId: finalCompanyId,
+        status: 'active',
+        createdAt: new Date().toISOString()
       });
     }
   };

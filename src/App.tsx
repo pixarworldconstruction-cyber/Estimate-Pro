@@ -24,10 +24,12 @@ import BusinessInsights from './components/BusinessInsights';
 import ConstructionCalculator from './components/ConstructionCalculator';
 
 import { ShieldAlert } from 'lucide-react';
+import { Toaster } from 'sonner';
 
 function AppContent() {
   const { user, loading, isSuperAdmin, company, logout } = useAuth();
   const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'super-admin' : 'dashboard');
+  const [selectedEstimate, setSelectedEstimate] = useState<{ id: string, mode: 'view' | 'edit' } | null>(null);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -70,13 +72,13 @@ function AppContent() {
   const renderContent = () => {
     switch (activeTab) {
       case 'super-admin':
-        return isSuperAdmin ? <SuperAdminPanel /> : <Dashboard setActiveTab={setActiveTab} />;
+        return isSuperAdmin ? <SuperAdminPanel /> : <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'dashboard':
-        return <Dashboard setActiveTab={setActiveTab} />;
+        return <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'clients':
         return <ClientDirectory />;
       case 'estimates':
-        return <EstimateBuilder />;
+        return <EstimateBuilder initialEstimateId={selectedEstimate?.id} initialMode={selectedEstimate?.mode} onClearInitialId={() => setSelectedEstimate(null)} />;
       case 'items':
         return <ItemCatalog />;
       case 'reminders':
@@ -102,6 +104,7 @@ function AppContent() {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <Toaster position="top-right" richColors />
       <NotificationManager />
       {renderContent()}
     </Layout>

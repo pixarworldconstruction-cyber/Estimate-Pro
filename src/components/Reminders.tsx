@@ -8,6 +8,7 @@ import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
+import { toast } from 'sonner';
 
 export default function Reminders() {
   const { staff } = useAuth();
@@ -29,7 +30,9 @@ export default function Reminders() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setNotificationPermission(Notification.permission);
+      // Use a more reliable sound URL
       audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      audioRef.current.load(); // Preload
     }
   }, []);
 
@@ -59,15 +62,43 @@ export default function Reminders() {
   }, [reminders]);
 
   const triggerNotification = (reminder: Reminder) => {
+    const client = clients.find(c => c.id === reminder.clientId);
+    const message = `${reminder.title} for ${client?.name || 'Client'}`;
+
+    // Browser Notification
     if (notificationPermission === 'granted') {
-      const client = clients.find(c => c.id === reminder.clientId);
-      new Notification('Reminder Due!', {
-        body: `${reminder.title} for ${client?.name || 'Client'}`,
-        icon: '/favicon.ico'
-      });
-      if (audioRef.current) {
-        audioRef.current.play().catch(e => console.error('Error playing sound:', e));
+      try {
+        new Notification('Reminder Due!', {
+          body: message,
+          icon: '/favicon.ico',
+          vibrate: [200, 100, 200], // Android vibration
+          tag: reminder.id
+        } as any);
+      } catch (e) {
+        console.error('Browser notification failed:', e);
       }
+    }
+
+    // Toast Notification (Always show as fallback)
+    toast.info('Reminder Due!', {
+      description: message,
+      duration: 10000,
+      action: {
+        label: 'View',
+        onClick: () => {
+          setSelectedReminder(reminder);
+          setFormData(reminder);
+          setIsModalOpen(true);
+        }
+      }
+    });
+
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => {
+        console.error('Error playing sound:', e);
+        // Fallback: trigger a user interaction if needed
+      });
     }
   };
 
@@ -137,19 +168,31 @@ export default function Reminders() {
 
   return (
     <div className="space-y-6">
+      {notificationPermission === 'default' && (
+        <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600">
+              <Bell className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-900">Enable Notifications</h3>
+              <p className="text-sm text-amber-700">Don't miss important follow-ups and client reminders.</p>
+            </div>
+          </div>
+          <button
+            onClick={requestPermission}
+            className="bg-amber-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20"
+          >
+            Allow Notifications
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-4xl font-black text-zinc-900 tracking-tight">Reminders</h1>
-          <div className="flex items-center gap-4 mt-2">
-            {notificationPermission !== 'granted' ? (
-              <button 
-                onClick={requestPermission}
-                className="text-xs text-primary font-bold flex items-center gap-1 hover:underline"
-              >
-                <Bell className="w-3 h-3" />
-                Enable Notifications
-              </button>
-            ) : (
+          <div className="flex flex-col gap-2 mt-2">
+            {notificationPermission === 'granted' ? (
               <div className="flex items-center gap-4">
                 <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" />
@@ -159,10 +202,18 @@ export default function Reminders() {
                   onClick={() => triggerNotification({ title: 'Test Notification', dueDate: new Date().toISOString() } as Reminder)}
                   className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline"
                 >
-                  Test Style
+                  Test Sound & Notification
                 </button>
               </div>
-            )}
+            ) : notificationPermission === 'denied' ? (
+              <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest flex items-center gap-1">
+                <Bell className="w-3 h-3" />
+                Notifications Blocked
+              </span>
+            ) : null}
+            <p className="text-[10px] text-zinc-400">
+              * On mobile, add this app to your Home Screen for better notifications.
+            </p>
           </div>
         </div>
         <button
