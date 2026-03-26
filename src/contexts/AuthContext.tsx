@@ -137,9 +137,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = onSnapshot(
       doc(db, 'companies', staff.companyId), 
-      (doc) => {
-        if (doc.exists()) {
-          setCompany({ id: doc.id, ...doc.data() } as Company);
+      async (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const companyData = { id: docSnapshot.id, ...docSnapshot.data() } as Company;
+          setCompany(companyData);
+
+          // Ensure old companies have a referral code
+          if (!companyData.referralCode && isAdmin) {
+            const newCode = generateReferralCode();
+            try {
+              await setDoc(doc(db, 'companies', companyData.id), { 
+                referralCode: newCode,
+                referralCount: 0
+              }, { merge: true });
+            } catch (error) {
+              console.error("Error generating referral code for old company:", error);
+            }
+          }
         }
       },
       (error) => {

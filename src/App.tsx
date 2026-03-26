@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { LanguageProvider } from './contexts/LanguageContext';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -23,6 +22,8 @@ import Calculator from './components/Calculator';
 import SketchPad from './components/SketchPad';
 import BusinessInsights from './components/BusinessInsights';
 import ConstructionCalculator from './components/ConstructionCalculator';
+import LandingPage from './components/LandingPage';
+import ContactUs from './components/ContactUs';
 
 import { ShieldAlert } from 'lucide-react';
 import { Toaster } from 'sonner';
@@ -47,7 +48,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login />;
+    return <LandingPage />;
   }
 
   if (company && (company.status === 'expired' || company.status === 'suspended') && !isSuperAdmin) {
@@ -98,6 +99,8 @@ function AppContent() {
         return <AdminPanel />;
       case 'profile':
         return <Profile />;
+      case 'contact-support':
+        return <ContactUs />;
       default:
         return <Dashboard setActiveTab={setActiveTab} />;
     }
@@ -116,9 +119,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <LanguageProvider>
-          <AppContent />
-        </LanguageProvider>
+        <AppContent />
       </ThemeProvider>
     </AuthProvider>
   );

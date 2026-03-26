@@ -131,3 +131,39 @@ export interface CRMHistory {
   notes: string;
   timestamp: any;
 }
+
+export interface LandingPageContent {
+  hero: {
+    title: string;
+    subtitle: string;
+    ctaText: string;
+    imageUrl: string;
+  };
+  about: {
+    title: string;
+    subtitle: string;
+    features: { icon: string; title: string; desc: string }[];
+  };
+  packages: {
+    title: string;
+    subtitle: string;
+    plans: { name: string; price: string; period: string; features: string[]; popular?: boolean }[];
+  };
+  contact: {
+    title: string;
+    subtitle: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
+  privacyPolicy: string;
+  termsAndConditions: string;
+}
+
+export interface SupportContent {
+  name: string;
+  email: string;
+  phone: string;
+  availability: string;
+  note: string;
+}

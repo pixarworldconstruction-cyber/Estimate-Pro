@@ -89,6 +89,14 @@ export default function AdminPanel() {
   const isTrial = company?.status === 'trial';
   const showExpiryWarning = isTrial ? remainingDays <= 7 : remainingDays <= 30;
 
+  const handleCopyReferral = () => {
+    if (company?.referralCode) {
+      navigator.clipboard.writeText(company.referralCode);
+      setSuccessMessage('Referral code copied to clipboard!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }
+  };
+
   useEffect(() => {
     if (company) {
       setSettings({
@@ -301,32 +309,50 @@ export default function AdminPanel() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {company && (
-        <div className={cn(
-          "p-6 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm",
-          showExpiryWarning ? "bg-red-50 border-red-100" : "bg-zinc-900 border-zinc-800 text-white"
-        )}>
-          <div className="flex items-center gap-4">
-            <div className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg",
-              showExpiryWarning ? "bg-red-500 text-white" : "bg-primary text-white"
-            )}>
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <div className={cn("text-sm font-medium opacity-70", !showExpiryWarning && "text-zinc-400")}>
-                {isTrial ? 'Trial Period' : 'Subscription Plan'}: <span className="font-bold">{company.planName}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={cn(
+            "p-6 rounded-3xl border flex items-center justify-between gap-6 shadow-sm",
+            showExpiryWarning ? "bg-red-50 border-red-100" : "bg-zinc-900 border-zinc-800 text-white"
+          )}>
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg",
+                showExpiryWarning ? "bg-red-500 text-white" : "bg-primary text-white"
+              )}>
+                <Clock className="w-6 h-6" />
               </div>
-              <div className={cn("text-2xl font-black", showExpiryWarning ? "text-red-600" : "text-white")}>
-                {isTrial ? `${remainingDays} Days Remaining` : (remainingDays <= 30 ? `${remainingDays} Days Remaining` : 'Active')}
+              <div>
+                <div className={cn("text-sm font-medium opacity-70", !showExpiryWarning && "text-zinc-400")}>
+                  {isTrial ? 'Trial Period' : 'Subscription Plan'}: <span className="font-bold">{company.planName}</span>
+                </div>
+                <div className={cn("text-2xl font-black", showExpiryWarning ? "text-red-600" : "text-white")}>
+                  {remainingDays} Days Remaining
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {company.features.map(f => (
-              <div key={f} className="px-3 py-1 bg-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                {f}
+
+          <div className="p-6 rounded-3xl border bg-white border-zinc-100 flex items-center justify-between gap-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center shadow-lg">
+                <UserPlus className="w-6 h-6" />
               </div>
-            ))}
+              <div>
+                <div className="text-sm font-medium text-zinc-500">
+                  Referral Program: <span className="font-bold text-primary">{company.referralCount || 0} Referrals</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-black text-zinc-900">{company.referralCode || 'N/A'}</span>
+                  <button 
+                    onClick={handleCopyReferral}
+                    className="p-1.5 hover:bg-zinc-100 rounded-lg transition-all text-zinc-400 hover:text-zinc-900"
+                    title="Copy Code"
+                  >
+                    <Save className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
