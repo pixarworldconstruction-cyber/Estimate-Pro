@@ -23,6 +23,9 @@ export interface Company {
   adminName?: string;
   adminEmail?: string;
   tempPassword?: string;
+  referralCode?: string; // Their own code
+  referredBy?: string; // The code they used to sign up
+  referralCount?: number; // How many companies they referred
   showWelcome?: boolean;
 }
 

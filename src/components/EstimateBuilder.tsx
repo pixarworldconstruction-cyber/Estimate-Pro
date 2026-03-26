@@ -78,8 +78,8 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       const sortedEstimates = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Estimate))
         .sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          const dateA = toDate(a.createdAt);
+          const dateB = toDate(b.createdAt);
           return dateB.getTime() - dateA.getTime();
         });
       setEstimates(sortedEstimates);
@@ -672,7 +672,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                   <div>
                     <h3 className="font-bold text-zinc-900">{client?.name || 'Unknown Client'}</h3>
                     <div className="text-xs text-zinc-400">
-                      {estimate.createdAt ? format(estimate.createdAt.toDate?.() || new Date(estimate.createdAt), 'dd MMM yyyy') : 'Just now'}
+                      {estimate.createdAt ? format(toDate(estimate.createdAt), 'dd MMM yyyy') : 'Just now'}
                       {estimate.createdByName && <span className="ml-2">• By {estimate.createdByName}</span>}
                     </div>
                   </div>
@@ -929,7 +929,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
 
                     <div className="flex justify-between items-center border border-zinc-900 p-2">
                       <h2 className="text-sm font-bold underline uppercase">General Estimate</h2>
-                      <p className="text-xs font-bold">Date: {formData.createdAt ? format(formData.createdAt.toDate?.() || new Date(formData.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
+                      <p className="text-xs font-bold">Date: {formData.createdAt ? format(toDate(formData.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
                     </div>
 
                     <table className="w-full border-collapse text-xs">
@@ -1640,7 +1640,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
           {/* Title and Date */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #0f172a', padding: '8px 15px', marginBottom: '15px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, textDecoration: 'underline' }}>General Estimate</h2>
-            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate?.() || new Date(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
           </div>
 
           {/* Customer Details Table */}
@@ -1668,7 +1668,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Current Address :</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.currentAddress || 'N/A'}</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Date :</td>
-                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.createdAt ? format(estimateToPrint.createdAt.toDate?.() || new Date(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</td>
+                <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</td>
               </tr>
               <tr>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Property Type :</td>

@@ -9,6 +9,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,7 @@ export default function Login() {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signUp(email, password, name);
+        await signUp(email, password, name, '', referralCode);
       } else {
         await signIn(email, password);
       }
@@ -86,6 +87,18 @@ export default function Login() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+              />
+            </div>
+          )}
+          {isSignUp && (
+            <div className="relative">
+              <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Referral Code (Optional)"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                 className="w-full pl-12 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
               />
             </div>

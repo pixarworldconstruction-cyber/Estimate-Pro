@@ -82,7 +82,7 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
         if (timePeriod === 'all') return estimates;
         const now = new Date();
         return estimates.filter(e => {
-          const date = e.createdAt?.toDate?.() || new Date(e.createdAt);
+          const date = toDate(e.createdAt);
           if (timePeriod === 'week') {
             const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             return date >= weekAgo;
@@ -118,8 +118,8 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
       
       const sortedEstimates = allEstimates
         .sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-          const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+          const dateA = toDate(a.createdAt);
+          const dateB = toDate(b.createdAt);
           return dateB.getTime() - dateA.getTime();
         })
         .slice(0, 10);

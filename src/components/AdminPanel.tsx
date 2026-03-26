@@ -452,6 +452,38 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {company && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+              <UserPlus className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Referral Code</p>
+              <p className="text-xl font-black text-zinc-900 font-mono tracking-tighter">{company.referralCode || 'N/A'}</p>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Total Referrals</p>
+              <p className="text-xl font-black text-zinc-900">{company.referralCount || 0}</p>
+            </div>
+          </div>
+          <div className="bg-primary p-6 rounded-2xl text-white shadow-lg shadow-primary/20 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-white/70 font-medium uppercase tracking-wider">Referral Benefit</p>
+              <p className="text-lg font-bold leading-tight">Get 10% OFF on next package</p>
+            </div>
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+              <Package className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">

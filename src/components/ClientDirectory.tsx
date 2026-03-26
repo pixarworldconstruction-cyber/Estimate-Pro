@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, order
 import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle } from 'lucide-react';
 import { Client, CRMHistory, Reminder, Estimate } from '../types';
 import ConfirmModal from './ConfirmModal';
-import { cn, formatCurrency } from '../lib/utils';
+import { cn, formatCurrency, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
@@ -488,7 +488,7 @@ export default function ClientDirectory() {
                             )}
                           </div>
                           <div className="text-xs text-zinc-400">
-                            {format(e.createdAt?.toDate?.() || new Date(e.createdAt), 'dd MMM yyyy')} • {formatCurrency(e.total)}
+                            {format(toDate(e.createdAt), 'dd MMM yyyy')} • {formatCurrency(e.total)}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">

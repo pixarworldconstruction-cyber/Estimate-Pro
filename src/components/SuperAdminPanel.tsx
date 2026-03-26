@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, firebaseConfig } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus } from 'lucide-react';
 import { Company, Staff } from '../types';
 import { format } from 'date-fns';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -417,6 +417,26 @@ export default function SuperAdminPanel() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1">
+                  <UserPlus className="w-3 h-3" />
+                  Referral Info
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-mono font-bold text-primary bg-primary/5 px-2 py-1 rounded">
+                    {company.referralCode || 'N/A'}
+                  </div>
+                  <div className="text-sm text-zinc-600">
+                    <span className="font-bold text-zinc-900">{company.referralCount || 0}</span> Referrals
+                  </div>
+                  {company.referredBy && (
+                    <div className="text-[10px] text-zinc-400 font-medium italic">
+                      Referred by: {company.referredBy}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <label className="text-xs font-bold text-zinc-500 uppercase">Active Features & Trials</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -468,7 +488,7 @@ export default function SuperAdminPanel() {
                                 Trial Active
                               </span>
                               <span className="text-[9px] text-zinc-400 font-medium">
-                                Expires: {format(toDate(isTrial), 'dd MMM')}
+                                Expires: {format(toDate(company.expiryDate), 'dd MMM')}
                               </span>
                             </div>
                           ) : (

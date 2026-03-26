@@ -27,7 +27,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  signUp: (email: string, pass: string, name: string, companyId?: string) => Promise<void>;
+  signUp: (email: string, pass: string, name: string, companyId?: string, referredByCode?: string) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (newPass: string) => Promise<void>;
@@ -149,7 +149,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [staff?.companyId]);
 
-  const signUp = async (email: string, pass: string, name: string, companyId: string = '') => {
+  const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  const signUp = async (email: string, pass: string, name: string, companyId: string = '', referredByCode: string = '') => {
     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
     
     // Check if there's already a pending record for this email
@@ -178,6 +180,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + 10); // 10 days trial
 
+        // Handle referral logic
+        let referredByCompanyId = '';
+        if (referredByCode) {
+          const q = query(collection(db, 'companies'), where('referralCode', '==', referredByCode.toUpperCase()));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const referringCompanyDoc = querySnapshot.docs[0];
+            referredByCompanyId = referringCompanyDoc.id;
+            
+            // Increment referral count for the referring company
+            const currentCount = referringCompanyDoc.data().referralCount || 0;
+            await setDoc(referringCompanyDoc.ref, { 
+              referralCount: currentCount + 1 
+            }, { merge: true });
+          }
+        }
+
         const companyDoc = await addDoc(collection(db, 'companies'), {
           name: `${name}'s Company`,
           status: 'trial',
@@ -188,7 +207,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           showWelcome: true,
           createdAt: serverTimestamp(),
           adminEmail: email,
-          adminName: name
+          adminName: name,
+          referralCode: generateReferralCode(),
+          referredBy: referredByCode.toUpperCase(),
+          referralCount: 0
         });
         finalCompanyId = companyDoc.id;
         role = 'admin';
