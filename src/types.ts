@@ -11,6 +11,8 @@ export interface Company {
   tan?: string;
   themeColor?: string;
   staffLimit?: number;
+  estimateLimit?: number; // Max number of estimates allowed
+  editTimeLimit?: number; // Max days allowed to edit an estimate
   ownerSignature?: string;
   createdAt: any;
   status: 'active' | 'suspended' | 'trial' | 'expired';

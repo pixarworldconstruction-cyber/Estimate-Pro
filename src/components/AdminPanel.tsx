@@ -7,7 +7,7 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { useAuth } from '../contexts/AuthContext';
 import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail } from 'lucide-react';
 import { Staff, Company } from '../types';
-import { cn } from '../lib/utils';
+import { cn, toDate } from '../lib/utils';
 
 export default function AdminPanel() {
   const { user, company, isAdmin, isSuperAdmin, staff: currentStaff } = useAuth();
@@ -79,7 +79,7 @@ export default function AdminPanel() {
 
   const getRemainingDays = () => {
     if (!company?.expiryDate) return 0;
-    const expiry = company.expiryDate.toDate();
+    const expiry = toDate(company.expiryDate);
     const today = new Date();
     const diff = expiry.getTime() - today.getTime();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));

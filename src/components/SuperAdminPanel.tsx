@@ -7,7 +7,7 @@ import { Company, Staff } from '../types';
 import { format } from 'date-fns';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { cn } from '../lib/utils';
+import { cn, toDate } from '../lib/utils';
 
 const AVAILABLE_FEATURES = [
   { id: 'clients', label: 'Clients' },
@@ -40,6 +40,8 @@ export default function SuperAdminPanel() {
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [staffLimit, setStaffLimit] = useState(5);
+  const [estimateLimit, setEstimateLimit] = useState(50);
+  const [editTimeLimit, setEditTimeLimit] = useState(7);
   const [planName, setPlanName] = useState('Free Trial');
   const [trialDays, setTrialDays] = useState(14);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(['clients', 'estimates', 'items', 'reminders']);
@@ -102,6 +104,8 @@ export default function SuperAdminPanel() {
         planName,
         expiryDate: Timestamp.fromDate(expiryDate),
         features: selectedFeatures,
+        estimateLimit,
+        editTimeLimit,
         createdAt: Timestamp.now(),
         adminName: newAdminName,
         adminEmail: newAdminEmail,
@@ -123,6 +127,8 @@ export default function SuperAdminPanel() {
       setNewAdminEmail('');
       setNewAdminName('');
       setStaffLimit(5);
+      setEstimateLimit(50);
+      setEditTimeLimit(7);
       setPlanName('Free Trial');
       setTrialDays(14);
       setSelectedFeatures(['clients', 'estimates', 'items', 'reminders']);
@@ -155,7 +161,7 @@ export default function SuperAdminPanel() {
   };
 
   const extendTrial = async (company: Company, days: number) => {
-    const currentExpiry = company.expiryDate ? company.expiryDate.toDate() : new Date();
+    const currentExpiry = toDate(company.expiryDate);
     const newExpiry = new Date(currentExpiry);
     newExpiry.setDate(newExpiry.getDate() + days);
     await handleUpdateCompany(company.id, { 
@@ -202,6 +208,26 @@ export default function SuperAdminPanel() {
                 type="number"
                 value={staffLimit}
                 onChange={e => setStaffLimit(parseInt(e.target.value))}
+                className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-zinc-700">Estimate Limit</label>
+              <input
+                type="number"
+                value={estimateLimit}
+                onChange={e => setEstimateLimit(parseInt(e.target.value))}
+                className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-zinc-700">Edit Time Limit (Days)</label>
+              <input
+                type="number"
+                value={editTimeLimit}
+                onChange={e => setEditTimeLimit(parseInt(e.target.value))}
                 className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
                 required
               />
@@ -349,6 +375,24 @@ export default function SuperAdminPanel() {
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-500 uppercase">Estimate Limit</label>
+                  <input
+                    type="number"
+                    value={company.estimateLimit || 50}
+                    onChange={e => handleUpdateCompany(company.id, { estimateLimit: parseInt(e.target.value) })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-500 uppercase">Edit Time Limit (Days)</label>
+                  <input
+                    type="number"
+                    value={company.editTimeLimit || 7}
+                    onChange={e => handleUpdateCompany(company.id, { editTimeLimit: parseInt(e.target.value) })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-zinc-500 uppercase">Status</label>
                   <select
                     value={company.status}
@@ -369,7 +413,7 @@ export default function SuperAdminPanel() {
                   Expiry Date
                 </label>
                 <div className="text-sm text-zinc-700 font-medium">
-                  {company.expiryDate ? format(company.expiryDate.toDate(), 'PPP') : 'N/A'}
+                  {company.expiryDate ? format(toDate(company.expiryDate), 'PPP') : 'N/A'}
                 </div>
               </div>
 
@@ -424,7 +468,7 @@ export default function SuperAdminPanel() {
                                 Trial Active
                               </span>
                               <span className="text-[9px] text-zinc-400 font-medium">
-                                Expires: {format(isTrial.toDate(), 'dd MMM')}
+                                Expires: {format(toDate(isTrial), 'dd MMM')}
                               </span>
                             </div>
                           ) : (
@@ -494,6 +538,24 @@ export default function SuperAdminPanel() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Estimate Limit</label>
+                <input
+                  type="number"
+                  value={editingCompany.estimateLimit || 50}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { estimateLimit: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Edit Time Limit (Days)</label>
+                <input
+                  type="number"
+                  value={editingCompany.editTimeLimit || 7}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { editTimeLimit: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-zinc-700">Plan Name</label>
                 <select
                   value={editingCompany.planName}
@@ -528,7 +590,7 @@ export default function SuperAdminPanel() {
                   Expiry & Trial Management
                 </label>
                 <div className="text-sm font-mono font-bold text-primary">
-                  {editingCompany.expiryDate ? format(editingCompany.expiryDate.toDate(), 'PPP') : 'N/A'}
+                  {editingCompany.expiryDate ? format(toDate(editingCompany.expiryDate), 'PPP') : 'N/A'}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">

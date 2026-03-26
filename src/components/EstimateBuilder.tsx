@@ -5,7 +5,7 @@ import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Pa
 import { toast } from 'sonner';
 import { Estimate, Client, Item, EstimateItem, Company } from '../types';
 import ConfirmModal from './ConfirmModal';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -203,6 +203,22 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!staff?.companyId) return;
+
+    // Check Estimate Limit for new estimates
+    if (!selectedEstimate && company?.estimateLimit && estimates.length >= company.estimateLimit) {
+      toast.error(`Estimate limit reached (${company.estimateLimit}). Please upgrade your package.`);
+      return;
+    }
+
+    // Check Edit Time Limit for existing estimates
+    if (selectedEstimate && company?.editTimeLimit) {
+      const createdDate = toDate(selectedEstimate.createdAt);
+      const daysDiff = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > company.editTimeLimit) {
+        toast.error(`Editing period has expired (${company.editTimeLimit} days). This estimate can no longer be modified.`);
+        return;
+      }
+    }
 
     const dataToSave = {
       ...formData,
@@ -604,9 +620,20 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-bold text-zinc-900">Estimates</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-900">Estimates</h1>
+          {company?.estimateLimit && (
+            <p className="text-xs text-zinc-500 mt-1">
+              Usage: <span className="font-bold text-primary">{estimates.length} / {company.estimateLimit}</span> Estimates
+            </p>
+          )}
+        </div>
         <button
           onClick={() => {
+            if (company?.estimateLimit && estimates.length >= company.estimateLimit) {
+              toast.error(`Estimate limit reached (${company.estimateLimit}). Please upgrade your package.`);
+              return;
+            }
             setSelectedEstimate(null);
             setFormData({
               ...initialFormData,
@@ -676,6 +703,14 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
               <div className="flex gap-2">
                 <button 
                   onClick={() => {
+                    if (company?.editTimeLimit) {
+                      const createdDate = toDate(estimate.createdAt);
+                      const daysDiff = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+                      if (daysDiff > company.editTimeLimit) {
+                        toast.error(`Editing period has expired (${company.editTimeLimit} days). This estimate can no longer be modified.`);
+                        return;
+                      }
+                    }
                     setSelectedEstimate(estimate);
                     setFormData(estimate);
                     setIsModalOpen(true);

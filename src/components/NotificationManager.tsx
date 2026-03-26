@@ -4,9 +4,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { toDate } from '../lib/utils';
 
 export default function NotificationManager() {
   const { user, company } = useAuth();
@@ -33,7 +34,7 @@ export default function NotificationManager() {
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
         // Use dueDate instead of date
-        const reminderDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : new Date(data.dueDate);
+        const reminderDate = toDate(data.dueDate);
         
         // If reminder is within the next 10 minutes and hasn't been notified
         const diffInMinutes = (reminderDate.getTime() - now.getTime()) / (1000 * 60);

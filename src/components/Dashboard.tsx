@@ -20,12 +20,13 @@ import {
   DollarSign
 } from 'lucide-react';
 import { Client, Estimate, Reminder } from '../types';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 import ConfirmModal from './ConfirmModal';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 export default function Dashboard({ setActiveTab, setSelectedEstimateId }: { 
   setActiveTab: (tab: string) => void;
@@ -50,6 +51,7 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
   const [stats, setStats] = useState({
     totalClients: 0,
     totalEstimates: 0,
+    totalEstimatesCount: 0,
     pendingEstimates: 0,
     activeReminders: 0,
     totalRevenue: 0,
@@ -107,6 +109,7 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
       setStats(prev => ({ 
         ...prev, 
         totalEstimates: filteredEstimates.length, 
+        totalEstimatesCount: allEstimates.length,
         pendingEstimates: pending,
         totalRevenue: revenue,
         totalEstimateValue: totalVal,
@@ -169,9 +172,20 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
         <div>
           <h1 className="text-5xl font-black text-zinc-900 tracking-tighter mb-2">Project Hub</h1>
           <p className="text-zinc-500 font-medium">Estimates are synced in real-time with your cloud account.</p>
+          {company?.estimateLimit && (
+            <p className="text-xs text-zinc-500 mt-1">
+              Usage: <span className="font-bold text-primary">{stats.totalEstimatesCount} / {company.estimateLimit}</span> Estimates
+            </p>
+          )}
         </div>
         <button
-          onClick={() => setActiveTab('estimates')}
+          onClick={() => {
+            if (company?.estimateLimit && stats.totalEstimatesCount >= company.estimateLimit) {
+              toast.error(`Estimate limit reached (${company.estimateLimit}). Please upgrade your package.`);
+              return;
+            }
+            setActiveTab('estimates');
+          }}
           className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-4 rounded-2xl font-bold shadow-xl shadow-zinc-900/20 hover:scale-[1.02] transition-all"
         >
           <Plus className="w-5 h-5" />
@@ -290,6 +304,14 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
                         </button>
                         <button 
                           onClick={() => {
+                            if (company?.editTimeLimit) {
+                              const createdDate = toDate(estimate.createdAt);
+                              const daysDiff = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+                              if (daysDiff > company.editTimeLimit) {
+                                toast.error(`Editing period has expired (${company.editTimeLimit} days). This estimate can no longer be modified.`);
+                                return;
+                              }
+                            }
                             if (setSelectedEstimateId) setSelectedEstimateId(estimate.id, 'edit');
                             setActiveTab('estimates');
                           }}
