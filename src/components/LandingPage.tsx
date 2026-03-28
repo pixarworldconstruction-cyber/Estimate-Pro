@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 import Login from './Login';
 import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { LandingPageContent } from '../types';
+import { doc, onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
+import { LandingPageContent, PricingPackage } from '../types';
 import { DEFAULT_LANDING_CONTENT } from '../constants/defaultContent';
 import ReactMarkdown from 'react-markdown';
 
@@ -39,6 +39,7 @@ export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [content, setContent] = useState<LandingPageContent>(DEFAULT_LANDING_CONTENT);
+  const [packages, setPackages] = useState<PricingPackage[]>([]);
   const [showLegal, setShowLegal] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
@@ -47,7 +48,22 @@ export default function LandingPage() {
         setContent(doc.data() as LandingPageContent);
       }
     });
-    return () => unsubscribe();
+
+    const packagesUnsub = onSnapshot(
+      collection(db, 'packages'), 
+      (snapshot) => {
+        const allPackages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PricingPackage));
+        const filtered = allPackages
+          .filter(pkg => pkg.type === 'subscription')
+          .sort((a, b) => a.price - b.price);
+        setPackages(filtered);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+      packagesUnsub();
+    };
   }, []);
 
   if (showLogin) {
@@ -231,48 +247,104 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {content.packages.plans.map((pkg, i) => (
-              <motion.div 
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className={cn(
-                  "p-10 rounded-[40px] border relative flex flex-col",
-                  pkg.popular ? "bg-zinc-900 border-zinc-800 text-white shadow-2xl scale-105 z-10" : "bg-white border-zinc-100 text-zinc-900"
-                )}
-              >
-                {pkg.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full">
-                    Most Popular
-                  </div>
-                )}
-                <div className="mb-8">
-                  <h3 className="text-2xl font-black mb-2">{pkg.name}</h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black">₹{pkg.price}</span>
-                    <span className={pkg.popular ? "text-zinc-400" : "text-zinc-500"}>/{pkg.period}</span>
-                  </div>
-                </div>
-                <div className="space-y-4 mb-10 flex-1">
-                  {pkg.features.map((f, j) => (
-                    <div key={j} className="flex items-center gap-3">
-                      <CheckCircle2 className={cn("w-5 h-5", pkg.popular ? "text-primary" : "text-primary")} />
-                      <span className="font-medium">{f}</span>
-                    </div>
-                  ))}
-                </div>
-                <button 
-                  onClick={() => setShowLogin(true)}
+            {packages.length > 0 ? (
+              packages.map((pkg, i) => (
+                <motion.div 
+                  key={pkg.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
                   className={cn(
-                    "w-full py-4 rounded-2xl font-bold transition-all",
-                    pkg.popular ? "bg-primary text-white hover:bg-primary/90" : "bg-zinc-900 text-white hover:bg-zinc-800"
+                    "p-10 rounded-[40px] border relative flex flex-col",
+                    pkg.popular ? "bg-zinc-900 border-zinc-800 text-white shadow-2xl scale-105 z-10" : "bg-white border-zinc-100 text-zinc-900"
                   )}
                 >
-                  Choose {pkg.name}
-                </button>
-              </motion.div>
-            ))}
+                  {pkg.popular && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full">
+                      Most Popular
+                    </div>
+                  )}
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-black mb-2">{pkg.name}</h3>
+                    <div className="flex items-baseline gap-2">
+                      {pkg.originalPrice && (
+                        <span className="text-lg text-zinc-400 line-through">₹{pkg.originalPrice}</span>
+                      )}
+                      <span className="text-4xl font-black text-primary">₹{pkg.price}</span>
+                      <span className={pkg.popular ? "text-zinc-400" : "text-zinc-500"}>/{pkg.period === 'monthly' ? 'mo' : 'yr'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-4 mb-10 flex-1">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary" />
+                      <span className="font-medium">{pkg.estimateLimit} Estimates</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary" />
+                      <span className="font-medium">{pkg.staffLimit} Staff Members</span>
+                    </div>
+                    {pkg.features.map((f, j) => (
+                      <div key={j} className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-primary" />
+                        <span className="font-medium">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setShowLogin(true)}
+                    className={cn(
+                      "w-full py-4 rounded-2xl font-bold transition-all",
+                      pkg.popular ? "bg-primary text-white hover:bg-primary/90" : "bg-zinc-900 text-white hover:bg-zinc-800"
+                    )}
+                  >
+                    Choose {pkg.name}
+                  </button>
+                </motion.div>
+              ))
+            ) : (
+              content.packages.plans.map((pkg, i) => (
+                <motion.div 
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className={cn(
+                    "p-10 rounded-[40px] border relative flex flex-col",
+                    pkg.popular ? "bg-zinc-900 border-zinc-800 text-white shadow-2xl scale-105 z-10" : "bg-white border-zinc-100 text-zinc-900"
+                  )}
+                >
+                  {pkg.popular && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full">
+                      Most Popular
+                    </div>
+                  )}
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-black mb-2">{pkg.name}</h3>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-black">₹{pkg.price}</span>
+                      <span className={pkg.popular ? "text-zinc-400" : "text-zinc-500"}>/{pkg.period}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-4 mb-10 flex-1">
+                    {pkg.features.map((f, j) => (
+                      <div key={j} className="flex items-center gap-3">
+                        <CheckCircle2 className={cn("w-5 h-5", pkg.popular ? "text-primary" : "text-primary")} />
+                        <span className="font-medium">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setShowLogin(true)}
+                    className={cn(
+                      "w-full py-4 rounded-2xl font-bold transition-all",
+                      pkg.popular ? "bg-primary text-white hover:bg-primary/90" : "bg-zinc-900 text-white hover:bg-zinc-800"
+                    )}
+                  >
+                    Choose {pkg.name}
+                  </button>
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </section>

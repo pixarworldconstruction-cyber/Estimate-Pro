@@ -9,15 +9,17 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Staff, Company } from '../types';
+import { toDate } from '../lib/utils';
 
 const ALL_FEATURES = [
   'clients', 'estimates', 'items', 'reminders', 'insights', 
   'converter', 'calculator', 'sketch', 'construction-calc',
   'calc-brick', 'calc-plaster', 'calc-paint', 'calc-gypsum', 
   'calc-electrical', 'calc-flooring', 'calc-stone', 'calc-doors', 
-  'calc-windows', 'calc-frame', 'calc-kitchen', 'calc-plumbing'
+  'calc-windows', 'calc-frame', 'calc-kitchen', 'calc-plumbing',
+  'civil-drawing'
 ];
 
 interface AuthContextType {
@@ -140,6 +142,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (docSnapshot) => {
         if (docSnapshot.exists()) {
           const companyData = { id: docSnapshot.id, ...docSnapshot.data() } as Company;
+          
+          // Check for expiry
+          const now = new Date();
+          const expiry = toDate(companyData.expiryDate);
+          if (expiry < now && companyData.status === 'active') {
+            try {
+              await updateDoc(doc(db, 'companies', companyData.id), { status: 'expired' });
+              companyData.status = 'expired';
+            } catch (err) {
+              console.error("Error auto-expiring company:", err);
+            }
+          } else if (expiry < now && companyData.status === 'trial') {
+             try {
+              await updateDoc(doc(db, 'companies', companyData.id), { status: 'expired' });
+              companyData.status = 'expired';
+            } catch (err) {
+              console.error("Error auto-expiring trial:", err);
+            }
+          }
+
           setCompany(companyData);
 
           // Ensure old companies have a referral code

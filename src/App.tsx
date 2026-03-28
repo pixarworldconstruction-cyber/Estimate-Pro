@@ -24,8 +24,9 @@ import BusinessInsights from './components/BusinessInsights';
 import ConstructionCalculator from './components/ConstructionCalculator';
 import LandingPage from './components/LandingPage';
 import ContactUs from './components/ContactUs';
+import SubscriptionPage from './components/SubscriptionPage';
 
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, CreditCard } from 'lucide-react';
 import { Toaster } from 'sonner';
 
 function AppContent() {
@@ -36,8 +37,10 @@ function AppContent() {
   useEffect(() => {
     if (isSuperAdmin) {
       setActiveTab('super-admin');
+    } else if (company?.showWelcome) {
+      setActiveTab('subscription');
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, company?.showWelcome]);
 
   if (loading) {
     return (
@@ -51,7 +54,9 @@ function AppContent() {
     return <LandingPage />;
   }
 
-  if (company && (company.status === 'expired' || company.status === 'suspended') && !isSuperAdmin) {
+  const isExpired = company && (company.status === 'expired' || company.status === 'suspended') && !isSuperAdmin;
+
+  if (isExpired && activeTab !== 'subscription' && activeTab !== 'contact-support') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-4">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100 max-w-md text-center space-y-4">
@@ -61,11 +66,20 @@ function AppContent() {
           <h2 className="text-2xl font-bold text-zinc-900">Account {company.status === 'expired' ? 'Expired' : 'Suspended'}</h2>
           <p className="text-zinc-600">
             Your company account for <span className="font-bold">{company.name}</span> has been {company.status}. 
-            Please contact the super admin to renew your plan.
+            Please choose a plan to continue or contact support.
           </p>
-          <button onClick={() => logout()} className="w-full bg-primary text-white py-3 rounded-xl font-bold">
-            Logout
-          </button>
+          <div className="grid grid-cols-1 gap-3">
+            <button 
+              onClick={() => setActiveTab('subscription')} 
+              className="w-full bg-primary text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+            >
+              <CreditCard className="w-5 h-5" />
+              Choose Plan
+            </button>
+            <button onClick={() => logout()} className="w-full bg-zinc-100 text-zinc-600 py-3 rounded-xl font-bold">
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -96,7 +110,9 @@ function AppContent() {
       case 'construction-calc':
         return <ConstructionCalculator />;
       case 'admin':
-        return <AdminPanel />;
+        return <AdminPanel setActiveTab={setActiveTab} />;
+      case 'subscription':
+        return <SubscriptionPage />;
       case 'profile':
         return <Profile />;
       case 'contact-support':

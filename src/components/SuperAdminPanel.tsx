@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { db, firebaseConfig } from '../firebase';
+import { db, firebaseConfig, storage } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package } from 'lucide-react';
-import { Company, Staff, LandingPageContent, SupportContent } from '../types';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload } from 'lucide-react';
+import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings } from '../types';
 import { format } from 'date-fns';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -32,12 +33,24 @@ const AVAILABLE_FEATURES = [
   { id: 'calc-frame', label: 'Frame Work Calc' },
   { id: 'calc-kitchen', label: 'Kitchen Calc' },
   { id: 'calc-plumbing', label: 'Plumbing Calc' },
+  { id: 'civil-drawing', label: 'Civil Drawing' },
 ];
 
 export default function SuperAdminPanel() {
   const { isSuperAdmin } = useAuth();
-  const [activeView, setActiveView] = useState<'companies' | 'content'>('companies');
+  const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments'>('companies');
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [packages, setPackages] = useState<PricingPackage[]>([]);
+  const [newPackage, setNewPackage] = useState<Partial<PricingPackage>>({
+    name: '',
+    price: 0,
+    originalPrice: 0,
+    period: 'monthly',
+    features: [],
+    type: 'subscription',
+    estimateLimit: 50,
+    staffLimit: 5
+  });
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
@@ -52,12 +65,20 @@ export default function SuperAdminPanel() {
   const [lastCreatedPassword, setLastCreatedPassword] = useState('');
   const [companyToDelete, setCompanyToDelete] = useState<string | null>(null);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [editingPackage, setEditingPackage] = useState<PricingPackage | null>(null);
   const [successData, setSuccessData] = useState<{ name: string, pass: string } | null>(null);
 
   // Content Management State
   const [landingContent, setLandingContent] = useState<LandingPageContent>(DEFAULT_LANDING_CONTENT);
   const [supportContent, setSupportContent] = useState<SupportContent>(DEFAULT_SUPPORT_CONTENT);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
+    upiId: '',
+    upiName: '',
+    qrCodeUrl: '',
+    instructions: ''
+  });
   const [savingContent, setSavingContent] = useState(false);
+  const [uploadingQR, setUploadingQR] = useState(false);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -73,12 +94,67 @@ export default function SuperAdminPanel() {
       if (doc.exists()) setSupportContent(doc.data() as SupportContent);
     });
 
+    const unsubPackages = onSnapshot(collection(db, 'packages'), (snapshot) => {
+      setPackages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PricingPackage)));
+    });
+
+    const unsubPayment = onSnapshot(doc(db, 'settings', 'payment'), (doc) => {
+      if (doc.exists()) setPaymentSettings(doc.data() as PaymentSettings);
+    });
+
     return () => {
       unsubscribe();
       unsubLanding();
       unsubSupport();
+      unsubPackages();
+      unsubPayment();
     };
   }, [isSuperAdmin]);
+
+  const handleAddPackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'packages'), {
+        ...newPackage,
+        createdAt: Timestamp.now()
+      });
+      setNewPackage({
+        name: '',
+        price: 0,
+        period: 'monthly',
+        features: [],
+        type: 'subscription',
+        estimateLimit: 50,
+        staffLimit: 5
+      });
+      alert('Package added successfully!');
+    } catch (err: any) {
+      setError("Failed to add package: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePackage = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this package?')) return;
+    try {
+      await deleteDoc(doc(db, 'packages', id));
+    } catch (err: any) {
+      setError("Failed to delete package: " + err.message);
+    }
+  };
+
+  const handleUpdatePackage = async (id: string, updates: Partial<PricingPackage>) => {
+    try {
+      await updateDoc(doc(db, 'packages', id), updates);
+      if (editingPackage && editingPackage.id === id) {
+        setEditingPackage({ ...editingPackage, ...updates } as PricingPackage);
+      }
+    } catch (err: any) {
+      setError("Failed to update package: " + err.message);
+    }
+  };
 
   const handleSaveLandingContent = async () => {
     setSavingContent(true);
@@ -101,6 +177,41 @@ export default function SuperAdminPanel() {
       setError("Failed to save support content: " + err.message);
     } finally {
       setSavingContent(false);
+    }
+  };
+
+  const handleSavePaymentSettings = async () => {
+    setSavingContent(true);
+    try {
+      await setDoc(doc(db, 'settings', 'payment'), paymentSettings);
+      alert('Payment settings saved successfully!');
+    } catch (err: any) {
+      setError("Failed to save payment settings: " + err.message);
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
+  const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingQR(true);
+    try {
+      const storageRef = ref(storage, 'settings/payment/qr_code');
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      await new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', null, reject, async () => {
+          const url = await getDownloadURL(storageRef);
+          setPaymentSettings(prev => ({ ...prev, qrCodeUrl: url }));
+          resolve(url);
+        });
+      });
+    } catch (err: any) {
+      setError("Failed to upload QR code: " + err.message);
+    } finally {
+      setUploadingQR(false);
     }
   };
 
@@ -277,7 +388,185 @@ export default function SuperAdminPanel() {
           <Globe className="w-4 h-4" />
           Content Management
         </button>
+        <button
+          onClick={() => setActiveView('packages')}
+          className={cn(
+            "px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2",
+            activeView === 'packages' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-zinc-500 hover:bg-zinc-50"
+          )}
+        >
+          <Package className="w-4 h-4" />
+          Packages
+        </button>
+        <button
+          onClick={() => setActiveView('payments')}
+          className={cn(
+            "px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2",
+            activeView === 'payments' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-zinc-500 hover:bg-zinc-50"
+          )}
+        >
+          <Smartphone className="w-4 h-4" />
+          Payment Settings
+        </button>
       </div>
+
+      {activeView === 'packages' && (
+        <div className="space-y-8">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+            <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
+              <Package className="text-primary" />
+              Add New Package
+            </h2>
+            <form onSubmit={handleAddPackage} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Package Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newPackage.name}
+                  onChange={e => setNewPackage({ ...newPackage, name: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="e.g. Basic Plan"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Original Price (₹) - Crossed out</label>
+                <input
+                  type="number"
+                  value={newPackage.originalPrice}
+                  onChange={e => setNewPackage({ ...newPackage, originalPrice: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="e.g. 1999"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Discount Price (₹) - Highlighted</label>
+                <input
+                  type="number"
+                  required
+                  value={newPackage.price}
+                  onChange={e => setNewPackage({ ...newPackage, price: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="e.g. 999"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Period</label>
+                <select
+                  value={newPackage.period}
+                  onChange={e => setNewPackage({ ...newPackage, period: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="one-time">One-time (Addon)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Type</label>
+                <select
+                  value={newPackage.type}
+                  onChange={e => setNewPackage({ ...newPackage, type: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="subscription">Subscription</option>
+                  <option value="addon">Addon (Estimate Limit)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Estimate Limit</label>
+                <input
+                  type="number"
+                  value={newPackage.estimateLimit}
+                  onChange={e => setNewPackage({ ...newPackage, estimateLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Staff Limit</label>
+                <input
+                  type="number"
+                  value={newPackage.staffLimit}
+                  onChange={e => setNewPackage({ ...newPackage, staffLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Features (Comma separated)</label>
+                <textarea
+                  value={newPackage.features?.join(', ')}
+                  onChange={e => setNewPackage({ ...newPackage, features: e.target.value.split(',').map(f => f.trim()) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
+                  placeholder="e.g. Unlimited Estimates, PDF Export, CRM"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {loading ? 'Adding...' : 'Add Package'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {packages.map((pkg) => (
+              <div key={pkg.id} className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm relative group hover:border-primary/50 transition-all">
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button
+                    onClick={() => setEditingPackage(pkg)}
+                    className="p-2 text-zinc-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    title="Edit Package"
+                  >
+                    <Shield size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDeletePackage(pkg.id)}
+                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete Package"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Package className="text-primary w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-zinc-900">{pkg.name}</h3>
+                    <span className="text-xs text-zinc-500 uppercase font-bold tracking-wider">{pkg.type}</span>
+                  </div>
+                </div>
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Price</span>
+                    <span className="font-bold text-zinc-900">₹{pkg.price} / {pkg.period}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Estimates</span>
+                    <span className="font-bold text-zinc-900">{pkg.estimateLimit}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Staff</span>
+                    <span className="font-bold text-zinc-900">{pkg.staffLimit}</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {pkg.features.map((feature, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm text-zinc-600">
+                      <Check size={14} className="text-green-500" />
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {activeView === 'companies' ? (
         <>
@@ -1229,6 +1518,114 @@ export default function SuperAdminPanel() {
         </div>
       )}
 
+      {/* Edit Package Modal */}
+      {editingPackage && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl max-w-2xl w-full space-y-6 shadow-2xl my-8">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
+                <Package className="text-primary" />
+                Modify Package: {editingPackage.name}
+              </h3>
+              <button 
+                onClick={() => setEditingPackage(null)}
+                className="p-2 hover:bg-zinc-100 rounded-full"
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Package Name</label>
+                <input
+                  type="text"
+                  value={editingPackage.name}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { name: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Original Price (₹)</label>
+                <input
+                  type="number"
+                  value={editingPackage.originalPrice || 0}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { originalPrice: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Discount Price (₹)</label>
+                <input
+                  type="number"
+                  value={editingPackage.price}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { price: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Period</label>
+                <select
+                  value={editingPackage.period}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { period: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="one-time">One-time (Addon)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Type</label>
+                <select
+                  value={editingPackage.type}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { type: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                >
+                  <option value="subscription">Subscription</option>
+                  <option value="addon">Addon (Estimate Limit)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Estimate Limit</label>
+                <input
+                  type="number"
+                  value={editingPackage.estimateLimit}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { estimateLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Staff Limit</label>
+                <input
+                  type="number"
+                  value={editingPackage.staffLimit}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { staffLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Features (Comma separated)</label>
+                <textarea
+                  value={editingPackage.features?.join(', ')}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { features: e.target.value.split(',').map(f => f.trim()) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 flex gap-3">
+              <button 
+                onClick={() => setEditingPackage(null)}
+                className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {companyToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -1294,6 +1691,100 @@ export default function SuperAdminPanel() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      {activeView === 'payments' && (
+        <div className="space-y-8">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+            <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
+              <Smartphone className="text-primary" />
+              UPI Payment Settings
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">UPI ID</label>
+                  <input
+                    type="text"
+                    value={paymentSettings.upiId}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    placeholder="e.g. yourname@upi"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Payee Name</label>
+                  <input
+                    type="text"
+                    value={paymentSettings.upiName}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, upiName: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    placeholder="e.g. Your Company Name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Payment Instructions</label>
+                  <textarea
+                    value={paymentSettings.instructions}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, instructions: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-32"
+                    placeholder="e.g. Please share the screenshot of payment on WhatsApp after successful transaction."
+                  />
+                </div>
+                <button
+                  onClick={handleSavePaymentSettings}
+                  disabled={savingContent}
+                  className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingContent ? 'Saving...' : 'Save Payment Settings'}
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <label className="text-sm font-semibold text-zinc-700 block">UPI QR Code</label>
+                <div className="relative group">
+                  <div className="aspect-square bg-zinc-50 rounded-3xl border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center overflow-hidden">
+                    {paymentSettings.qrCodeUrl ? (
+                      <img 
+                        src={paymentSettings.qrCodeUrl} 
+                        alt="UPI QR Code" 
+                        className="w-full h-full object-contain p-4"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center p-6">
+                        <ImageIcon className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
+                        <p className="text-sm text-zinc-400">No QR Code Uploaded</p>
+                      </div>
+                    )}
+                    
+                    {uploadingQR && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <label className="absolute inset-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 flex items-center justify-center rounded-3xl">
+                    <div className="text-white text-center">
+                      <Upload className="w-8 h-8 mx-auto mb-2" />
+                      <span className="font-bold">Upload QR Code</span>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handleQRUpload}
+                      disabled={uploadingQR}
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-zinc-400 text-center italic">Upload your UPI QR code (GPay, PhonePe, etc.) for customers to scan and pay.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

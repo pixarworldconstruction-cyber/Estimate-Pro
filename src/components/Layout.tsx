@@ -36,6 +36,20 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   const { logout, isAdmin, isSuperAdmin, company, staff } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const navItems = isSuperAdmin 
     ? [{ id: 'super-admin', label: 'Super Admin', icon: ShieldCheck }]
@@ -50,10 +64,20 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         ...(company?.features?.includes('converter') ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
         ...(company?.features?.includes('calculator') ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
         ...(company?.features?.includes('construction-calc') ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
+        { id: 'civil-drawing', label: 'Civil Drawing', icon: PenTool },
         ...(isAdmin ? [{ id: 'admin', label: 'Company Identity', icon: Settings }] : []),
         { id: 'profile', label: 'My Profile', icon: User },
         { id: 'contact-support', label: 'Contact Us', icon: Mail },
       ];
+
+  const handleNavClick = (id: string) => {
+    if (id === 'civil-drawing') {
+      window.open('https://civil-drawings.vercel.app/', '_blank');
+      return;
+    }
+    setActiveTab(id);
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
@@ -71,7 +95,13 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
         <div className={cn("p-6 flex items-center gap-3 border-bottom border-zinc-100", isCollapsed && "justify-center px-0")}>
           {company?.logoUrl ? (
-            <img src={company.logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover" referrerPolicy="no-referrer" />
+            <img 
+              key={company.logoUrl}
+              src={company.logoUrl} 
+              alt="Logo" 
+              className="w-8 h-8 rounded-lg object-cover" 
+              referrerPolicy="no-referrer" 
+            />
           ) : (
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
               <Construction className="text-white w-5 h-5" />
@@ -81,10 +111,16 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+          {isOffline && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center gap-2 text-amber-700 animate-pulse">
+              <Database className="w-4 h-4" />
+              <div className="text-[10px] font-bold uppercase tracking-wider">Offline Mode</div>
+            </div>
+          )}
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium group relative",
                 activeTab === item.id 
@@ -148,10 +184,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsMobileMenuOpen(false);
-                  }}
+                  onClick={() => handleNavClick(item.id)}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium",
                     activeTab === item.id 

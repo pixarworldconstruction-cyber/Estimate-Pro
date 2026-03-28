@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { db, storage, firebaseConfig } from '../firebase';
 import { doc, setDoc, collection, onSnapshot, deleteDoc, addDoc, query, where, updateDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap } from 'lucide-react';
 import { Staff, Company } from '../types';
 import { cn, toDate } from '../lib/utils';
 
-export default function AdminPanel() {
+export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   const { user, company, isAdmin, isSuperAdmin, staff: currentStaff } = useAuth();
   const [settings, setSettings] = useState<Partial<Company>>({
     name: '',
@@ -149,25 +149,41 @@ export default function AdminPanel() {
     setSuccessMessage('Uploading logo...');
     setErrorMessage(null);
 
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Upload timed out after 15 seconds')), 15000)
-    );
+    if (!navigator.onLine) {
+      setErrorMessage('You are offline. Please connect to the internet to upload files.');
+      setUploading(false);
+      return;
+    }
 
     try {
       const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
-      const uploadTask = uploadBytes(storageRef, file);
+      const uploadTask = uploadBytesResumable(storageRef, file);
       
-      await Promise.race([uploadTask, timeoutPromise]);
-      
-      const url = await getDownloadURL(storageRef);
-      setSettings(prev => ({ ...prev, logoUrl: url }));
-      // Update Firestore immediately
-      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
-      setSuccessMessage('Logo uploaded successfully!');
+      return new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setSuccessMessage(`Uploading logo: ${Math.round(progress)}%`);
+          }, 
+          (error) => {
+            console.error('Upload failed', error);
+            setErrorMessage('Logo upload failed: ' + error.message);
+            setUploading(false);
+            reject(error);
+          }, 
+          async () => {
+            const url = await getDownloadURL(storageRef);
+            setSettings(prev => ({ ...prev, logoUrl: url }));
+            await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
+            setSuccessMessage('Logo uploaded successfully!');
+            setUploading(false);
+            resolve(url);
+          }
+        );
+      });
     } catch (error: any) {
       console.error('Upload failed', error);
       setErrorMessage('Logo upload failed: ' + error.message);
-    } finally {
       setUploading(false);
     }
   };
@@ -360,7 +376,18 @@ export default function AdminPanel() {
       {company && (
         <div className="space-y-8">
           <div>
-            <h1 className="text-4xl font-bold text-zinc-900 mb-2">Company Identity</h1>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-4xl font-bold text-zinc-900">Company Identity</h1>
+              {setActiveTab && (
+                <button 
+                  onClick={() => setActiveTab('subscription')}
+                  className="flex items-center gap-2 px-6 py-3 bg-primary/10 text-primary rounded-2xl font-bold hover:bg-primary/20 transition-all"
+                >
+                  <Zap className="w-5 h-5" />
+                  Upgrade Packages
+                </button>
+              )}
+            </div>
             <p className="text-zinc-500">Configure the business details displayed on your estimates.</p>
           </div>
 
@@ -368,9 +395,15 @@ export default function AdminPanel() {
             <div className="space-y-6">
               <div className="bg-white p-10 rounded-[48px] border border-zinc-100 shadow-sm text-center space-y-6">
                 <div className="relative inline-block">
-                  <div className="w-32 h-32 bg-zinc-900 rounded-[32px] flex items-center justify-center text-white text-5xl font-black shadow-2xl">
+                  <div className="w-32 h-32 bg-zinc-900 rounded-[32px] flex items-center justify-center text-white text-5xl font-black shadow-2xl overflow-hidden">
                     {settings.logoUrl ? (
-                      <img src={settings.logoUrl} alt="Logo" className="w-full h-full rounded-[32px] object-cover" referrerPolicy="no-referrer" />
+                      <img 
+                        key={settings.logoUrl}
+                        src={settings.logoUrl} 
+                        alt="Logo" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                      />
                     ) : (
                       settings.name?.[0] || 'P'
                     )}

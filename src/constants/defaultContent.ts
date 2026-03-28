@@ -13,6 +13,7 @@ export const DEFAULT_LANDING_CONTENT: LandingPageContent = {
     features: [
       { icon: "FileText", title: "Smart Estimates", desc: "Create professional, detailed estimates in minutes with our intuitive builder." },
       { icon: "Users", title: "Client Management", desc: "Keep track of all your clients, projects, and communication history." },
+      { icon: "PenTool", title: "Civil Drawing", desc: "Access professional civil drawing tools for your construction projects. Free for all users." },
       { icon: "TrendingUp", title: "Business Insights", desc: "Get real-time data on your business performance and project profitability." }
     ]
   },

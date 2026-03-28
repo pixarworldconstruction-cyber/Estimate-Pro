@@ -27,6 +27,31 @@ export interface Company {
   referredBy?: string; // The code they used to sign up
   referralCount?: number; // How many companies they referred
   showWelcome?: boolean;
+  subscriptionStatus?: 'active' | 'past_due' | 'unpaid' | 'canceled' | 'trialing';
+  currentPeriodEnd?: any;
+  paymentMethod?: 'card' | 'upi';
+}
+
+export interface PricingPackage {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number; // Crossed out price
+  period: 'monthly' | 'yearly' | 'one-time';
+  features: string[];
+  popular?: boolean;
+  type: 'subscription' | 'addon';
+  estimateLimit?: number;
+  staffLimit?: number;
+  description?: string;
+}
+
+export interface PaymentSettings {
+  upiId: string;
+  upiName: string;
+  qrCodeUrl?: string;
+  bankDetails?: string;
+  instructions?: string;
 }
 
 export interface Staff {

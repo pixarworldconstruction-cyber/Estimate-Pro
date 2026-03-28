@@ -909,7 +909,13 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center overflow-hidden">
                           {company?.logoUrl ? (
-                            <img src={company.logoUrl} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                            <img 
+                              key={company.logoUrl}
+                              src={company.logoUrl} 
+                              alt="Logo" 
+                              className="w-full h-full object-contain" 
+                              referrerPolicy="no-referrer" 
+                            />
                           ) : (
                             <span className="text-2xl font-black">{company?.name?.[0] || 'P'}</span>
                           )}
@@ -1617,7 +1623,13 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid #fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#fbbf24' }}>
                 {company?.logoUrl ? (
-                  <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" />
+                  <img 
+                    key={company.logoUrl}
+                    src={company.logoUrl} 
+                    alt="Logo" 
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                    referrerPolicy="no-referrer" 
+                  />
                 ) : (
                   <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'black' }}>{company?.name?.[0] || 'P'}</span>
                 )}
