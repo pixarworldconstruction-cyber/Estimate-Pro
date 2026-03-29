@@ -16,7 +16,12 @@ import {
   HardHat,
   MapPin,
   ClipboardList,
-  History
+  History,
+  Camera,
+  Image as ImageIcon,
+  X,
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { 
   collection, 
@@ -26,11 +31,14 @@ import {
   addDoc, 
   updateDoc, 
   doc, 
+  deleteDoc,
   serverTimestamp,
   orderBy,
-  getDocs
+  getDocs,
+  writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { Project, DailyReport, Staff, Client } from '../types';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -62,8 +70,13 @@ export default function ProjectManagement() {
     todayWork: '',
     workCompleted: '',
     workProcess: '',
-    notes: ''
+    notes: '',
+    photos: [],
+    laborCount: 0,
+    laborDetails: '',
+    date: format(new Date(), 'yyyy-MM-dd')
   });
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (!staff) return;
@@ -154,6 +167,115 @@ export default function ProjectManagement() {
     }
   };
 
+  const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    if (!isAdmin && !isSuperAdmin) return;
+    
+    if (!window.confirm('Are you sure you want to delete this project? This will also delete all associated daily reports.')) {
+      return;
+    }
+
+    try {
+      // Delete project document
+      await deleteDoc(doc(db, 'projects', projectId));
+
+      // Delete associated daily reports
+      const reportsQuery = query(collection(db, 'dailyReports'), where('projectId', '==', projectId));
+      const reportsSnapshot = await getDocs(reportsQuery);
+      
+      if (!reportsSnapshot.empty) {
+        const batch = writeBatch(db);
+        reportsSnapshot.docs.forEach((reportDoc) => {
+          batch.delete(reportDoc.ref);
+        });
+        await batch.commit();
+      }
+
+      toast.success('Project and associated reports deleted successfully');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error('Failed to delete project');
+    }
+  };
+
+  const compressImage = (file: File): Promise<Blob | File> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob || file);
+            },
+            'image/jpeg',
+            0.7
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !company) return;
+
+    setIsUploading(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const compressedFile = await compressImage(file);
+        const storageRef = ref(storage, `projects/${selectedProject?.id}/reports/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, compressedFile);
+        return getDownloadURL(storageRef);
+      });
+
+      const urls = await Promise.all(uploadPromises);
+      setReportData(prev => ({
+        ...prev,
+        photos: [...(prev.photos || []), ...urls]
+      }));
+      toast.success('Photos uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      toast.error('Failed to upload photos');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removePhoto = (urlToRemove: string) => {
+    setReportData(prev => ({
+      ...prev,
+      photos: (prev.photos || []).filter(url => url !== urlToRemove)
+    }));
+  };
+
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject || !staff) return;
@@ -164,7 +286,6 @@ export default function ProjectManagement() {
         projectId: selectedProject.id,
         staffId: staff.id,
         staffName: staff.name,
-        date: format(new Date(), 'yyyy-MM-dd'),
         createdAt: serverTimestamp()
       });
       setIsReportModalOpen(false);
@@ -172,7 +293,11 @@ export default function ProjectManagement() {
         todayWork: '',
         workCompleted: '',
         workProcess: '',
-        notes: ''
+        notes: '',
+        photos: [],
+        laborCount: 0,
+        laborDetails: '',
+        date: format(new Date(), 'yyyy-MM-dd')
       });
       toast.success('Daily report submitted');
     } catch (error) {
@@ -281,6 +406,36 @@ export default function ProjectManagement() {
                           <p className="text-sm text-zinc-600">{report.workProcess}</p>
                         </div>
                       </div>
+
+                      {(report.laborCount || report.laborDetails) && (
+                        <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 flex items-start gap-4">
+                          <div className="p-2 bg-white rounded-xl border border-zinc-100">
+                            <HardHat className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-zinc-900 mb-1">Labor Details</div>
+                            <div className="text-xs text-zinc-600">
+                              <span className="font-bold text-primary">{report.laborCount || 0}</span> Labors on site
+                              {report.laborDetails && <span className="mx-2 text-zinc-300">|</span>}
+                              {report.laborDetails}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {report.photos && report.photos.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                          {report.photos.map((photo, i) => (
+                            <img 
+                              key={i} 
+                              src={photo} 
+                              alt="Site" 
+                              className="w-24 h-24 rounded-xl object-cover border border-zinc-100 flex-shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                          ))}
+                        </div>
+                      )}
                       {report.notes && (
                         <div className="p-3 bg-zinc-50 rounded-xl text-xs text-zinc-500 italic">
                           "{report.notes}"
@@ -352,7 +507,40 @@ export default function ProjectManagement() {
                   <Plus className="w-6 h-6 rotate-45 text-zinc-500" />
                 </button>
               </div>
-              <form onSubmit={handleSubmitReport} className="p-6 space-y-4">
+              <form onSubmit={handleSubmitReport} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Report Date</label>
+                  <input
+                    type="date"
+                    value={reportData.date}
+                    onChange={e => setReportData(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700">Labor Count</label>
+                    <input
+                      type="number"
+                      value={reportData.laborCount}
+                      onChange={e => setReportData(prev => ({ ...prev, laborCount: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700">Labor Details</label>
+                    <input
+                      type="text"
+                      value={reportData.laborDetails}
+                      onChange={e => setReportData(prev => ({ ...prev, laborDetails: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                      placeholder="e.g. 2 Carpenters, 1 Helper"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-zinc-700">Today's Work</label>
                   <textarea
@@ -383,6 +571,43 @@ export default function ProjectManagement() {
                     required
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Site Photos</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {reportData.photos?.map((url, i) => (
+                      <div key={i} className="relative group aspect-square rounded-xl overflow-hidden border border-zinc-100">
+                        <img src={url} alt="Site" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(url)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                        disabled={isUploading}
+                      />
+                      {isUploading ? (
+                        <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                      ) : (
+                        <>
+                          <Camera className="w-6 h-6 text-zinc-400" />
+                          <span className="text-[10px] font-bold text-zinc-500 mt-1">Add Photos</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-zinc-700">Additional Notes (Optional)</label>
                   <input
@@ -392,7 +617,11 @@ export default function ProjectManagement() {
                     className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
                   />
                 </div>
-                <button type="submit" className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
+                <button 
+                  type="submit" 
+                  disabled={isUploading}
+                  className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50"
+                >
                   Submit Report
                 </button>
               </form>
@@ -448,9 +677,15 @@ export default function ProjectManagement() {
               <div className={cn("px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider", getStatusColor(project.status))}>
                 {project.status}
               </div>
-              <button className="p-2 hover:bg-zinc-50 rounded-lg text-zinc-400">
-                <MoreVertical className="w-4 h-4" />
-              </button>
+              {(isAdmin || isSuperAdmin) && (
+                <button 
+                  onClick={(e) => handleDeleteProject(e, project.id)}
+                  className="p-2 hover:bg-red-50 rounded-lg text-zinc-400 hover:text-red-500 transition-colors"
+                  title="Delete Project"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
             
             <h3 className="text-lg font-bold text-zinc-900 mb-2 group-hover:text-primary transition-colors">{project.name}</h3>

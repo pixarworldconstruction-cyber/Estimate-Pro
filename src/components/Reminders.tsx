@@ -28,7 +28,7 @@ export default function Reminders() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof Notification !== 'undefined') {
       setNotificationPermission(Notification.permission);
       // Use a more reliable sound URL
       audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -37,7 +37,7 @@ export default function Reminders() {
   }, []);
 
   const requestPermission = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (typeof window !== 'undefined' && typeof Notification !== 'undefined' && 'Notification' in window) {
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
     }
@@ -66,7 +66,7 @@ export default function Reminders() {
     const message = `${reminder.title} for ${client?.name || 'Client'}`;
 
     // Browser Notification
-    if (notificationPermission === 'granted') {
+    if (typeof Notification !== 'undefined' && notificationPermission === 'granted') {
       try {
         new Notification('Reminder Due!', {
           body: message,

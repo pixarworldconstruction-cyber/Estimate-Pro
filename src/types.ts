@@ -153,6 +153,8 @@ export interface InvoiceItem {
   unit: string;
   gstSlab: number;
   total: number;
+  length?: number;
+  width?: number;
 }
 
 export interface Invoice {
@@ -198,6 +200,9 @@ export interface DailyReport {
   workProcess: string;
   notes?: string;
   createdAt: any;
+  photos?: string[];
+  laborCount?: number;
+  laborDetails?: string;
 }
 
 export interface Reminder {

@@ -122,13 +122,22 @@ export default function InvoiceBuilder() {
   }, [staff, isSuperAdmin]);
 
   const calculateTotals = (items: InvoiceItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
     const gstTotal = items.reduce((sum, item) => {
       if (!company?.gstEnabled) return 0;
-      const itemGst = (item.price * item.quantity * (item.gstSlab || 0)) / 100;
+      const itemGst = (item.total * (item.gstSlab || 0)) / 100;
       return sum + itemGst;
     }, 0);
     return { subtotal, gstTotal, total: subtotal + gstTotal };
+  };
+
+  const calculateItemTotal = (item: Partial<InvoiceItem>) => {
+    const length = Number(item.length) || 0;
+    const width = Number(item.width) || 0;
+    const price = Number(item.price) || 0;
+    const quantity = Number(item.quantity) || 0;
+    const area = (length && width) ? length * width : 1;
+    return Number((price * quantity * area).toFixed(2));
   };
 
   const addItem = (item: Item) => {
@@ -139,6 +148,8 @@ export default function InvoiceBuilder() {
       quantity: 1,
       unit: item.unit || 'Nos',
       gstSlab: item.gstSlab || 18,
+      length: 0,
+      width: 0,
       total: item.price
     };
 
@@ -147,10 +158,15 @@ export default function InvoiceBuilder() {
     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
   };
 
-  const updateItemQuantity = (id: string, quantity: number) => {
-    const updatedItems = (formData.items || []).map(item => 
-      item.id === id ? { ...item, quantity, total: item.price * quantity } : item
-    );
+  const updateItem = (id: string, updates: Partial<InvoiceItem>) => {
+    const updatedItems = (formData.items || []).map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, ...updates };
+        updatedItem.total = calculateItemTotal(updatedItem);
+        return updatedItem;
+      }
+      return item;
+    });
     const totals = calculateTotals(updatedItems);
     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
   };
@@ -170,32 +186,36 @@ export default function InvoiceBuilder() {
 
     setIsSaving(true);
     try {
-      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-      const docRef = await addDoc(collection(db, 'invoices'), {
+      const isEditing = !!formData.id;
+      const invoiceData = {
         ...formData,
-        invoiceNumber,
         clientName: client.name,
         companyId: company.id,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      setSavedInvoiceId(docRef.id);
-      toast.success('Invoice created successfully');
-      // Switch to view mode for the newly created invoice
-      const newInvoice = {
-        id: docRef.id,
-        ...formData,
-        invoiceNumber,
-        clientName: client.name,
-        companyId: company.id,
-        createdAt: new Date(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (!isEditing) {
+        invoiceData.invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+        invoiceData.createdAt = serverTimestamp();
+        const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
+        invoiceData.id = docRef.id;
+      } else {
+        await updateDoc(doc(db, 'invoices', formData.id!), invoiceData);
+      }
+
+      toast.success(isEditing ? 'Invoice updated successfully' : 'Invoice created successfully');
+      
+      const savedInvoice = {
+        ...invoiceData,
+        createdAt: isEditing ? toDate(formData.createdAt) : new Date(),
         updatedAt: new Date()
       } as Invoice;
-      setSelectedInvoice(newInvoice);
+      
+      setSelectedInvoice(savedInvoice);
       setActiveView('view');
     } catch (error) {
-      console.error('Error creating invoice:', error);
-      toast.error('Failed to create invoice');
+      console.error('Error saving invoice:', error);
+      toast.error('Failed to save invoice');
     } finally {
       setIsSaving(false);
     }
@@ -306,6 +326,16 @@ export default function InvoiceBuilder() {
           </button>
           <div className="flex gap-2">
             <button 
+              onClick={() => {
+                setFormData(selectedInvoice);
+                setActiveView('create');
+              }}
+              className="flex items-center gap-2 bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl font-bold hover:bg-zinc-200 transition-all"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit
+            </button>
+            <button 
               onClick={() => generatePDF(selectedInvoice)}
               className="flex items-center gap-2 bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl font-bold hover:bg-zinc-200 transition-all"
             >
@@ -385,25 +415,32 @@ export default function InvoiceBuilder() {
             </div>
 
             {/* Items Table */}
-            <table className="w-full mb-12">
+            <table className="w-full mb-12 border-collapse">
               <thead>
-                <tr className="border-b-2 border-zinc-900">
-                  <th className="py-4 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest">Description</th>
-                  <th className="py-4 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest">Qty</th>
-                  <th className="py-4 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price</th>
-                  <th className="py-4 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total</th>
+                <tr className="border-b-2 border-zinc-900 bg-zinc-50">
+                  <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Sr.</th>
+                  <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Item Name</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">L / H</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">W / D</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Unit</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">GST%</th>
+                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Price</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Qty</th>
+                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody>
                 {selectedInvoice.items.map((item, idx) => (
                   <tr key={idx}>
-                    <td className="py-6">
-                      <div className="font-bold text-zinc-900">{item.name}</div>
-                      <div className="text-xs text-zinc-500">{item.unit} • GST {item.gstSlab}%</div>
-                    </td>
-                    <td className="py-6 text-center font-bold text-zinc-900">{item.quantity}</td>
-                    <td className="py-6 text-right font-bold text-zinc-900">{formatCurrency(item.price)}</td>
-                    <td className="py-6 text-right font-black text-zinc-900">{formatCurrency(item.total)}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{idx + 1}</td>
+                    <td className="p-3 text-xs font-bold text-zinc-900 border border-zinc-900">{item.name}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.length || '-'}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.width || '-'}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900 uppercase">{item.unit}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.gstSlab}%</td>
+                    <td className="p-3 text-right text-xs font-bold text-zinc-900 border border-zinc-900">{formatCurrency(item.price)}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.quantity}</td>
+                    <td className="p-3 text-right text-xs font-black text-zinc-900 border border-zinc-900">{formatCurrency(item.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -545,46 +582,113 @@ export default function InvoiceBuilder() {
                   <Plus className="w-4 h-4" /> Add Item
                 </button>
               </div>
-              <div className="divide-y divide-zinc-100">
-                {formData.items && formData.items.length > 0 ? (
-                  formData.items.map((item) => (
-                    <div key={item.id} className="p-4 flex items-center justify-between group">
-                      <div className="flex-1">
-                        <div className="font-bold text-zinc-900">{item.name}</div>
-                        <div className="text-xs text-zinc-500">
-                          {formatCurrency(item.price)} / {item.unit}
-                          {company?.gstEnabled && ` • GST ${item.gstSlab}%`}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={e => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
-                            className="w-16 px-2 py-1 rounded-lg border border-zinc-200 text-center font-bold"
-                          />
-                          <span className="text-xs font-medium text-zinc-400 uppercase">{item.unit}</span>
-                        </div>
-                        <div className="w-24 text-right font-bold text-zinc-900">
-                          {formatCurrency(item.price * item.quantity)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.id)}
-                          className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-12 text-center text-zinc-400">
-                    No items added to the invoice yet.
-                  </div>
-                )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50 border-b border-zinc-100">
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Sr.</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Item Name</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">L / H</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">W / D</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Unit</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">GST%</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Qty.</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest text-right">Total</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {formData.items && formData.items.length > 0 ? (
+                      formData.items.map((item, index) => (
+                        <tr key={item.id} className="group hover:bg-zinc-50 transition-colors">
+                          <td className="px-4 py-3 text-xs font-bold text-zinc-400">{index + 1}</td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={e => updateItem(item.id, { name: e.target.value })}
+                              className="w-full bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.length || 0}
+                              onChange={e => updateItem(item.id, { length: parseFloat(e.target.value) || 0 })}
+                              className="w-16 bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.width || 0}
+                              onChange={e => updateItem(item.id, { width: parseFloat(e.target.value) || 0 })}
+                              className="w-16 bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={item.unit}
+                              onChange={e => updateItem(item.id, { unit: e.target.value })}
+                              className="bg-transparent border-none outline-none font-bold text-zinc-900 text-xs uppercase"
+                            >
+                              <option value="Nos">Nos</option>
+                              <option value="Sft">Sft</option>
+                              <option value="Cft">Cft</option>
+                              <option value="Rft">Rft</option>
+                              <option value="Kg">Kg</option>
+                              <option value="Mt">Mt</option>
+                              <option value="Bag">Bag</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.gstSlab}
+                              onChange={e => updateItem(item.id, { gstSlab: parseInt(e.target.value) || 0 })}
+                              className="w-12 bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.price}
+                              onChange={e => updateItem(item.id, { price: parseFloat(e.target.value) || 0 })}
+                              className="w-24 bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                              className="w-16 bg-transparent border-none outline-none font-bold text-zinc-900 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right font-black text-zinc-900 text-sm">
+                            {formatCurrency(item.total)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              className="p-2 text-zinc-300 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={10} className="p-12 text-center text-zinc-400 italic">
+                          No items added to the invoice yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -749,6 +853,15 @@ export default function InvoiceBuilder() {
                         className="p-2 hover:bg-white rounded-lg text-zinc-400 hover:text-primary transition-all shadow-sm"
                       >
                         <Eye className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setFormData(invoice);
+                          setActiveView('create');
+                        }}
+                        className="p-2 hover:bg-white rounded-lg text-zinc-400 hover:text-primary transition-all shadow-sm"
+                      >
+                        <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => generatePDF(invoice)}

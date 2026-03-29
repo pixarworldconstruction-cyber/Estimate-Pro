@@ -523,7 +523,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                 <div className="pt-4 border-t border-zinc-100">
                   <button
                     type="button"
-                    onClick={() => window.open('https://play.google.com/store/apps', '_blank')}
+                    onClick={() => window.open('https://drive.google.com/file/d/1OI13OZ5H0jQgBsr6mFbk6wtRcu5lAWJC/view?usp=sharing', '_blank')}
                     className="w-full flex items-center justify-center gap-3 py-5 bg-primary/10 text-primary rounded-[32px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all border-2 border-primary/20"
                   >
                     <Smartphone className="w-6 h-6" />

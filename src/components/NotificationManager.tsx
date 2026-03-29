@@ -14,10 +14,10 @@ export default function NotificationManager() {
   const [notifiedReminders] = useState(new Set<string>());
 
   useEffect(() => {
-    if (!user || !company || !('Notification' in window)) return;
+    if (!user || !company || typeof Notification === 'undefined' || !('Notification' in window)) return;
 
     // Request permission
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
@@ -43,7 +43,7 @@ export default function NotificationManager() {
           const message = `Reminder: ${data.title}`;
           const description = data.description || 'You have an upcoming task.';
 
-          if (Notification.permission === 'granted') {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try {
               new Notification(message, {
                 body: description,

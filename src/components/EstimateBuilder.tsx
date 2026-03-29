@@ -609,9 +609,21 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
   };
 
   const handleDelete = async () => {
-    if (!estimateToDelete) return;
-    await deleteDoc(doc(db, 'estimates', estimateToDelete));
-    setEstimateToDelete(null);
+    if (!estimateToDelete || !staff?.companyId) return;
+    try {
+      await deleteDoc(doc(db, 'estimates', estimateToDelete));
+      
+      // Decrement usedEstimates count in company document
+      await updateDoc(doc(db, 'companies', staff.companyId), {
+        usedEstimates: increment(-1)
+      });
+      
+      setEstimateToDelete(null);
+      toast.success('Estimate deleted successfully');
+    } catch (error) {
+      console.error('Delete failed', error);
+      toast.error('Failed to delete estimate');
+    }
   };
 
   const filteredEstimates = estimates.filter(e => {

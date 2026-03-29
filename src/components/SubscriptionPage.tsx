@@ -57,6 +57,13 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
 
   const handleSubscribe = async (pkg: PricingPackage) => {
     setSelectedPackage(pkg);
+    // Clear previous payment details
+    setPaymentDetails({
+      cardNumber: '',
+      expiry: '',
+      cvv: '',
+      upiId: ''
+    });
     // Skip selection step and go straight to UPI payment
     setPaymentMethod('upi');
     setPaymentStep('details');

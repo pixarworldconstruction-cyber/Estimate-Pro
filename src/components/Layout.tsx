@@ -243,6 +243,36 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
                   {item.label}
                 </button>
               ))}
+
+              {isAdmin && !isSuperAdmin && (
+                <div className="pt-4 space-y-2 border-t border-zinc-100 mt-4">
+                  <button
+                    onClick={() => handleNavClick('subscription')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-left",
+                      activeTab === 'subscription' 
+                        ? "bg-primary text-white" 
+                        : "text-zinc-500 hover:bg-zinc-50"
+                    )}
+                  >
+                    <Zap className={cn("w-5 h-5", activeTab === 'subscription' ? "text-white" : "text-primary")} />
+                    Upgrade Plan
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('addons')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-left",
+                      activeTab === 'addons' 
+                        ? "bg-primary text-white" 
+                        : "text-zinc-500 hover:bg-zinc-50"
+                    )}
+                  >
+                    <PlusCircle className={cn("w-5 h-5", activeTab === 'addons' ? "text-white" : "text-primary")} />
+                    Addons
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={logout}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium mt-4 text-left"

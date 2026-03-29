@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
-import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle, Smartphone } from 'lucide-react';
 import { Client, CRMHistory, Reminder, Estimate } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { cn, formatCurrency, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
+import { toast } from 'sonner';
 
 export default function ClientDirectory() {
   const { staff, isSuperAdmin } = useAuth();
@@ -103,6 +104,35 @@ export default function ClientDirectory() {
       };
     }
   }, [viewingClient, staff]);
+
+  const importFromContacts = async () => {
+    try {
+      if (!('contacts' in navigator && 'ContactsManager' in window)) {
+        toast.error('Contact Picker API is not supported in this browser.');
+        return;
+      }
+
+      const props = ['name', 'tel'];
+      const opts = { multiple: false };
+      const contacts = await (navigator as any).contacts.select(props, opts);
+
+      if (contacts && contacts.length > 0) {
+        const contact = contacts[0];
+        setFormData(prev => ({
+          ...prev,
+          name: contact.name?.[0] || '',
+          mob1: contact.tel?.[0] || '',
+        }));
+        toast.success('Contact imported successfully');
+      }
+    } catch (error) {
+      console.error('Contact import failed', error);
+      // Don't show error if user cancelled
+      if ((error as any).name !== 'AbortError') {
+        toast.error('Failed to import contact');
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,9 +281,21 @@ export default function ClientDirectory() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <div className="bg-white w-full max-w-2xl rounded-3xl p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <h2 className="text-2xl font-bold text-zinc-900 mb-6">
-              {selectedClient ? 'Edit Client' : 'Add New Client'}
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-zinc-900">
+                {selectedClient ? 'Edit Client' : 'Add New Client'}
+              </h2>
+              {!selectedClient && (
+                <button
+                  type="button"
+                  onClick={importFromContacts}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl font-bold text-sm hover:bg-primary/20 transition-all"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  Import from Contacts
+                </button>
+              )}
+            </div>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-semibold text-zinc-700">Client Name</label>

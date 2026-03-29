@@ -15,6 +15,7 @@ import {
   Undo2
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 const GRID_SIZE = 20;
 
@@ -89,16 +90,30 @@ export default function SketchPad() {
   };
 
   const handleShare = async () => {
-    const uri = stageRef.current.toDataURL();
-    const blob = await fetch(uri).then(res => res.blob());
-    const file = new File([blob], 'sketch.png', { type: 'image/png' });
-    
-    if (navigator.share) {
-      await navigator.share({
-        files: [file],
-        title: 'My Sketch',
-        text: 'Check out my construction sketch!'
-      });
+    try {
+      const uri = stageRef.current.toDataURL();
+      const blob = await fetch(uri).then(res => res.blob());
+      const file = new File([blob], 'sketch.png', { type: 'image/png' });
+      
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'My Sketch',
+          text: 'Check out my construction sketch!'
+        });
+      } else if (navigator.share) {
+        // Fallback to text/url share if files not supported
+        await navigator.share({
+          title: 'My Sketch',
+          text: 'Check out my construction sketch!',
+          url: window.location.href
+        });
+      } else {
+        toast.error('Sharing is not supported on this browser');
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+      toast.error('Failed to share sketch');
     }
   };
 
@@ -145,7 +160,7 @@ export default function SketchPad() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
         <div className="bg-white rounded-[40px] shadow-sm border border-zinc-100 overflow-hidden relative group">
-          <div className="absolute top-6 left-6 z-10 flex gap-2 bg-white/80 backdrop-blur-md p-2 rounded-2xl border border-zinc-200 shadow-xl">
+          <div className="absolute top-2 left-2 md:top-6 md:left-6 z-10 flex gap-1 md:gap-2 bg-white/80 backdrop-blur-md p-1 md:p-2 rounded-xl md:rounded-2xl border border-zinc-200 shadow-xl">
             {[
               { id: 'pen', icon: PenTool },
               { id: 'eraser', icon: Eraser },
@@ -154,32 +169,32 @@ export default function SketchPad() {
               <button
                 key={t.id}
                 onClick={() => setTool(t.id)}
-                className={`p-3 rounded-xl transition-all ${tool === t.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-500 hover:bg-zinc-100'}`}
+                className={`p-2 md:p-3 rounded-lg md:rounded-xl transition-all ${tool === t.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-500 hover:bg-zinc-100'}`}
               >
-                <t.icon size={20} />
+                <t.icon size={18} className="md:w-5 md:h-5" />
               </button>
             ))}
             <div className="w-px bg-zinc-200 mx-1" />
             <button
               onClick={() => setShowGrid(!showGrid)}
-              className={`p-3 rounded-xl transition-all ${showGrid ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'}`}
+              className={`p-2 md:p-3 rounded-lg md:rounded-xl transition-all ${showGrid ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'}`}
             >
-              <GridIcon size={20} />
+              <GridIcon size={18} className="md:w-5 md:h-5" />
             </button>
             <button
               onClick={() => setSnapToGrid(!snapToGrid)}
-              className={`p-3 rounded-xl transition-all ${snapToGrid ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'}`}
+              className={`p-2 md:p-3 rounded-lg md:rounded-xl transition-all ${snapToGrid ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'}`}
             >
-              <MousePointer2 size={20} />
+              <MousePointer2 size={18} className="md:w-5 md:h-5" />
             </button>
           </div>
 
-          <div className="absolute top-6 right-6 z-10 flex gap-2 bg-white/80 backdrop-blur-md p-2 rounded-2xl border border-zinc-200 shadow-xl">
-            <button onClick={handleUndo} className="p-3 text-zinc-500 hover:bg-zinc-100 rounded-xl transition-all">
-              <Undo2 size={20} />
+          <div className="absolute top-2 right-2 md:top-6 md:right-6 z-10 flex gap-1 md:gap-2 bg-white/80 backdrop-blur-md p-1 md:p-2 rounded-xl md:rounded-2xl border border-zinc-200 shadow-xl">
+            <button onClick={handleUndo} className="p-2 md:p-3 text-zinc-500 hover:bg-zinc-100 rounded-lg md:rounded-xl transition-all">
+              <Undo2 size={18} className="md:w-5 md:h-5" />
             </button>
-            <button onClick={handleClear} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all">
-              <Trash2 size={20} />
+            <button onClick={handleClear} className="p-2 md:p-3 text-red-500 hover:bg-red-50 rounded-lg md:rounded-xl transition-all">
+              <Trash2 size={18} className="md:w-5 md:h-5" />
             </button>
           </div>
 
@@ -196,6 +211,14 @@ export default function SketchPad() {
               ref={stageRef}
             >
               <Layer>
+                {/* Background Rect to ensure saved image has white background */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={2000}
+                  height={2000}
+                  fill="white"
+                />
                 {renderGrid()}
                 {lines.map((line, i) => (
                   <Line

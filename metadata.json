@@ -1,5 +1,5 @@
 {
   "name": "Construction Pro",
   "description": "A comprehensive construction management app for estimates, client CRM, and project tracking with admin controls.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["camera", "microphone", "geolocation", "contacts", "fileSystem"]
 }
