@@ -40,7 +40,7 @@ const AVAILABLE_FEATURES = [
 ];
 
 export default function SuperAdminPanel() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, cleanupExpiredAccounts } = useAuth();
   const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments'>('companies');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [packages, setPackages] = useState<PricingPackage[]>([]);
@@ -372,6 +372,20 @@ export default function SuperAdminPanel() {
         ? prev.filter(id => id !== featureId) 
         : [...prev, featureId]
     );
+  };
+
+  const handleManualCleanup = async () => {
+    if (!confirm('This will permanently delete all trial accounts expired for more than 8 days and paid accounts expired for more than 30 days. Continue?')) return;
+    setLoading(true);
+    try {
+      await cleanupExpiredAccounts();
+      toast.success('Cleanup completed successfully!');
+    } catch (err: any) {
+      setError("Cleanup failed: " + err.message);
+      toast.error('Cleanup failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isSuperAdmin) return <div className="p-8 text-center text-red-500 font-bold">Access Denied</div>;
@@ -722,14 +736,24 @@ export default function SuperAdminPanel() {
                 <Building2 className="text-primary" />
                 Manage Companies
               </h2>
-              <button
-                onClick={handleGenerateAllReferralCodes}
-                disabled={loading}
-                className="px-4 py-2 bg-zinc-100 text-zinc-600 rounded-xl font-bold text-sm hover:bg-zinc-200 transition-all flex items-center gap-2"
-              >
-                <Zap className="w-4 h-4" />
-                Generate Missing Referral Codes
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleManualCleanup}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Cleanup Expired
+                </button>
+                <button
+                  onClick={handleGenerateAllReferralCodes}
+                  disabled={loading}
+                  className="px-4 py-2 bg-zinc-100 text-zinc-600 rounded-xl font-bold text-sm hover:bg-zinc-200 transition-all flex items-center gap-2"
+                >
+                  <Zap className="w-4 h-4" />
+                  Generate Missing Referral Codes
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

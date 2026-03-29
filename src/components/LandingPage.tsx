@@ -98,7 +98,7 @@ export default function LandingPage() {
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <Construction className="text-white w-6 h-6" />
             </div>
-            <span className="text-xl font-black text-zinc-900 tracking-tight">Estimate Pro</span>
+            <span className="text-xl font-black text-zinc-900 tracking-tight">Construction Pro</span>
           </div>
 
           {/* Desktop Menu */}
@@ -422,7 +422,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Construction className="text-white w-5 h-5" />
             </div>
-            <span className="text-lg font-black text-zinc-900 tracking-tight">Estimate Pro</span>
+            <span className="text-lg font-black text-zinc-900 tracking-tight">Construction Pro</span>
           </div>
           <div className="text-zinc-400 text-sm font-medium">
             © 2026 Construction Pro. All rights reserved.

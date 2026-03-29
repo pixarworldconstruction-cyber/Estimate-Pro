@@ -8,7 +8,7 @@ export const DEFAULT_LANDING_CONTENT: LandingPageContent = {
     imageUrl: "https://images.unsplash.com/photo-1503387762-592dee58c460?auto=format&fit=crop&q=80&w=1920"
   },
   about: {
-    title: "Why Choose Estimate Pro?",
+    title: "Why Choose Construction Pro?",
     subtitle: "Everything you need to manage your construction projects in one place.",
     features: [
       { icon: "FileText", title: "Smart Estimates", desc: "Create professional, detailed estimates in minutes with our intuitive builder." },
@@ -45,7 +45,7 @@ export const DEFAULT_LANDING_CONTENT: LandingPageContent = {
   contact: {
     title: "Get In Touch",
     subtitle: "Have questions? We're here to help you get started.",
-    email: "support@estimatepro.com",
+    email: "support@constructionpro.com",
     phone: "+91 98765 43210",
     address: "123 Construction Way, Suite 100, Mumbai, Maharashtra 400001"
   },
@@ -55,7 +55,7 @@ export const DEFAULT_LANDING_CONTENT: LandingPageContent = {
 
 export const DEFAULT_SUPPORT_CONTENT: SupportContent = {
   name: "Super Admin Support",
-  email: "admin@estimatepro.com",
+  email: "admin@constructionpro.com",
   phone: "+91 98765 43210",
   availability: "Monday - Saturday, 10:00 AM - 6:00 PM IST",
   note: "For urgent technical issues, please call our support line directly."

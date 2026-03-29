@@ -27,9 +27,11 @@ import {
   Briefcase,
   Zap,
   PlusCircle,
-  Smartphone
+  Smartphone,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, toDate } from '../lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -86,8 +88,38 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     setIsMobileMenuOpen(false);
   };
 
+  const getRemainingDays = () => {
+    if (!company?.expiryDate) return 0;
+    const expiry = toDate(company.expiryDate);
+    const today = new Date();
+    const diff = expiry.getTime() - today.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const remainingDays = getRemainingDays();
+  const isTrial = company?.status === 'trial';
+  const isExpired = company?.status === 'expired' || (remainingDays <= 0);
+
   return (
-    <div className="min-h-screen bg-zinc-50 flex">
+    <div className="min-h-screen bg-zinc-50 flex flex-col md:flex-row">
+      {/* Expiry Notice Banner */}
+      {isExpired && isAdmin && !isSuperAdmin && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white px-4 py-2 flex items-center justify-center gap-3 shadow-lg animate-in fade-in slide-in-from-top-4">
+          <AlertTriangle className="w-5 h-5 animate-pulse" />
+          <p className="text-sm font-bold">
+            {isTrial 
+              ? "If not purchase any plan your all data will delete in next 7 days"
+              : "Your subscription has expired. Please renew within 30 days to avoid permanent data deletion."}
+          </p>
+          <button 
+            onClick={() => setActiveTab('subscription')}
+            className="ml-4 px-4 py-1 bg-white text-red-600 rounded-full text-xs font-black uppercase tracking-widest hover:bg-zinc-100 transition-all"
+          >
+            Renew Now
+          </button>
+        </div>
+      )}
+
       {/* Sidebar Desktop */}
       <aside className={cn(
         "hidden md:flex flex-col bg-white border-r border-zinc-200 transition-all duration-300 relative h-screen sticky top-0",
@@ -286,7 +318,10 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
       )}
 
       {/* Main Content */}
-      <main className="flex-1 md:p-8 p-4 pt-20 md:pt-8 overflow-y-auto">
+      <main className={cn(
+        "flex-1 md:p-8 p-4 pt-20 md:pt-8 overflow-y-auto",
+        isExpired && isAdmin && !isSuperAdmin && "pt-28 md:pt-20"
+      )}>
         {children}
       </main>
     </div>

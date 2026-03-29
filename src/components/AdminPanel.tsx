@@ -44,7 +44,8 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
-  const { changePassword } = useAuth();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { changePassword, logout } = useAuth();
 
   const features = [
     { id: 'estimates', name: 'Estimates', icon: FileText },
@@ -320,6 +321,31 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     }
   };
 
+  const handleDeleteCompany = async () => {
+    if (!currentStaff?.companyId) return;
+    setUploading(true);
+    try {
+      // 1. Delete all staff members
+      const staffQuery = query(collection(db, 'staff'), where('companyId', '==', currentStaff.companyId));
+      const staffDocs = await getDocs(staffQuery);
+      const staffDeletes = staffDocs.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(staffDeletes);
+
+      // 2. Delete company document
+      await deleteDoc(doc(db, 'companies', currentStaff.companyId));
+
+      setSuccessMessage('Account deleted successfully. Logging out...');
+      setTimeout(() => {
+        logout();
+      }, 2000);
+    } catch (error: any) {
+      setErrorMessage('Failed to delete account: ' + error.message);
+    } finally {
+      setUploading(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   if (!isAdmin) return <div className="p-8 text-center">Access Denied</div>;
   if (!company && !isSuperAdmin) return <div className="p-8 text-center">No company associated with this account.</div>;
 
@@ -524,13 +550,67 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   <button
                     type="button"
                     onClick={() => window.open('https://drive.google.com/file/d/1OI13OZ5H0jQgBsr6mFbk6wtRcu5lAWJC/view?usp=sharing', '_blank')}
-                    className="w-full flex items-center justify-center gap-3 py-5 bg-primary/10 text-primary rounded-[32px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all border-2 border-primary/20"
+                    className="w-full flex items-center justify-center gap-3 py-5 bg-primary/10 text-primary rounded-[32px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all border-2 border-primary/20 mb-4"
                   >
                     <Smartphone className="w-6 h-6" />
                     Download Android App
                   </button>
+
+                  <div className="p-8 bg-red-50 rounded-[32px] border border-red-100 space-y-4">
+                    <div className="flex items-center gap-3 text-red-600">
+                      <Trash2 className="w-6 h-6" />
+                      <h3 className="text-lg font-bold uppercase tracking-widest">Danger Zone</h3>
+                    </div>
+                    <p className="text-sm text-red-700 font-medium">
+                      Once you delete your company account, there is no going back. All your data, including staff, clients, estimates, and projects, will be permanently removed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                    >
+                      Delete Company Account
+                    </button>
+                  </div>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[40px] max-w-md w-full space-y-6 shadow-2xl border border-red-100">
+            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-10 h-10" />
+            </div>
+            <div className="text-center space-y-3">
+              <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">Delete Account?</h3>
+              <div className="p-4 bg-red-50 rounded-2xl text-left border border-red-100">
+                <p className="text-red-800 text-sm font-bold leading-relaxed">
+                  Notice: If any payment made will not be refund any condition, once account delete your all data will loss.
+                </p>
+              </div>
+              <p className="text-zinc-500 text-sm font-medium">
+                This action is permanent and cannot be undone. Are you absolutely sure?
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-6 py-4 rounded-2xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDeleteCompany}
+                disabled={uploading}
+                className="flex-1 px-6 py-4 rounded-2xl font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 disabled:opacity-50"
+              >
+                {uploading ? 'Deleting...' : 'Yes, Delete'}
+              </button>
             </div>
           </div>
         </div>

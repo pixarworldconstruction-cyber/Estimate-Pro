@@ -35,6 +35,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   changePassword: (newPass: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  cleanupExpiredAccounts: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -310,8 +311,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, isAdmin, isSuperAdmin]);
 
+  const cleanupExpiredAccounts = async () => {
+    if (!isSuperAdmin) return;
+    
+    try {
+      const now = new Date();
+      const companiesSnapshot = await getDocs(collection(db, 'companies'));
+      
+      for (const companyDoc of companiesSnapshot.docs) {
+        const companyData = companyDoc.data() as Company;
+        if (!companyData.expiryDate) continue;
+        
+        const expiry = toDate(companyData.expiryDate);
+        const diffDays = Math.floor((now.getTime() - expiry.getTime()) / (1000 * 60 * 60 * 24));
+        
+        let shouldDelete = false;
+        if (companyData.status === 'trial' && diffDays >= 8) {
+          shouldDelete = true;
+        } else if (companyData.status === 'expired' && diffDays >= 30) {
+          shouldDelete = true;
+        }
+
+        if (shouldDelete) {
+          console.log(`Auto-deleting expired company: ${companyData.name} (${companyDoc.id})`);
+          
+          // 1. Delete all staff
+          const staffQuery = query(collection(db, 'staff'), where('companyId', '==', companyDoc.id));
+          const staffSnapshot = await getDocs(staffQuery);
+          const staffDeletes = staffSnapshot.docs.map(d => deleteDoc(d.ref));
+          await Promise.all(staffDeletes);
+          
+          // 2. Delete company
+          await deleteDoc(companyDoc.ref);
+          
+          // 3. Delete other related data (optional but good for "all data will loss")
+          const collections = ['clients', 'estimates', 'items', 'reminders', 'crmHistory', 'projects', 'invoices'];
+          for (const collName of collections) {
+            const q = query(collection(db, collName), where('companyId', '==', companyDoc.id));
+            const snap = await getDocs(q);
+            const deletes = snap.docs.map(d => deleteDoc(d.ref));
+            await Promise.all(deletes);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Cleanup error:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      cleanupExpiredAccounts();
+    }
+  }, [isSuperAdmin]);
+
   return (
-    <AuthContext.Provider value={{ user, staff, company, loading, isAdmin, isSuperAdmin, signUp, signIn, logout, changePassword, resetPassword }}>
+    <AuthContext.Provider value={{ user, staff, company, loading, isAdmin, isSuperAdmin, signUp, signIn, logout, changePassword, resetPassword, cleanupExpiredAccounts }}>
       {children}
     </AuthContext.Provider>
   );
