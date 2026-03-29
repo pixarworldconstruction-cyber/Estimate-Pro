@@ -232,7 +232,8 @@ export default function Reminders() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {reminders.map(reminder => {
           const client = clients.find(c => c.id === reminder.clientId);
-          const isOverdue = new Date(reminder.dueDate) < new Date() && reminder.status === 'pending';
+          const dueDate = new Date(reminder.dueDate);
+          const isOverdue = dueDate < new Date() && reminder.status === 'pending';
 
           return (
             <div key={reminder.id} className={cn(

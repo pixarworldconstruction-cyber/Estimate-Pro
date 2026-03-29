@@ -7,7 +7,7 @@ import { Check, Zap, ShieldCheck, CreditCard, Smartphone } from 'lucide-react';
 import { cn, toDate } from '../lib/utils';
 import { toast } from 'sonner';
 
-export default function SubscriptionPage() {
+export default function SubscriptionPage({ initialView }: { initialView?: 'plans' | 'addons' }) {
   const { company, isSuperAdmin } = useAuth();
   const [packages, setPackages] = useState<PricingPackage[]>([]);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
@@ -25,9 +25,15 @@ export default function SubscriptionPage() {
   useEffect(() => {
     const unsubPackages = onSnapshot(collection(db, 'packages'), (snapshot) => {
       const allPackages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PricingPackage));
-      const filtered = allPackages
-        .filter(pkg => pkg.type === 'subscription')
-        .sort((a, b) => a.price - b.price);
+      
+      let filtered = allPackages;
+      if (initialView === 'addons') {
+        filtered = allPackages.filter(pkg => pkg.type === 'addon');
+      } else {
+        filtered = allPackages.filter(pkg => pkg.type === 'subscription');
+      }
+      
+      filtered.sort((a, b) => a.price - b.price);
       setPackages(filtered);
       setLoading(false);
     });
@@ -51,11 +57,8 @@ export default function SubscriptionPage() {
 
   const handleSubscribe = async (pkg: PricingPackage) => {
     setSelectedPackage(pkg);
-    setPaymentStep('payment');
-  };
-
-  const handleSelectMethod = (method: 'card' | 'upi') => {
-    setPaymentMethod(method);
+    // Skip selection step and go straight to UPI payment
+    setPaymentMethod('upi');
     setPaymentStep('details');
   };
 
@@ -82,6 +85,7 @@ export default function SubscriptionPage() {
         estimateLimit: (company.estimateLimit || 0) + (selectedPackage.estimateLimit || 0),
         staffLimit: Math.max(company.staffLimit || 0, selectedPackage.staffLimit || 0),
         paymentMethod: paymentMethod,
+        paymentReference: paymentMethod === 'upi' ? paymentDetails.upiId : 'CARD_PAYMENT',
         updatedAt: Timestamp.now()
       };
 
@@ -136,18 +140,22 @@ export default function SubscriptionPage() {
     <div className="max-w-6xl mx-auto space-y-8 p-4">
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-black text-zinc-900 tracking-tight">
-          {paymentStep === 'plans' ? 'Choose Your Plan' : 'Complete Payment'}
+          {paymentStep === 'plans' 
+            ? (initialView === 'addons' ? 'Available Addons' : 'Choose Your Plan') 
+            : 'Complete Payment'}
         </h1>
         <p className="text-zinc-500 text-lg max-w-2xl mx-auto">
           {paymentStep === 'plans' 
-            ? 'Select a package that fits your business needs. All plans include core features.' 
+            ? (initialView === 'addons' 
+                ? 'Enhance your plan with extra estimates and features.' 
+                : 'Select a package that fits your business needs. All plans include core features.')
             : `You are subscribing to the ${selectedPackage?.name}. Select your payment method.`}
         </p>
       </div>
 
       {paymentStep === 'plans' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {packages.filter(p => p.type === 'subscription').map((pkg) => (
+          {packages.map((pkg) => (
             <div 
               key={pkg.id} 
               className={cn(
@@ -198,58 +206,13 @@ export default function SubscriptionPage() {
                     : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
                 )}
               >
-                Get Started
+                {initialView === 'addons' ? 'Buy Now' : 'Get Started'}
               </button>
             </div>
           ))}
         </div>
-      ) : paymentStep === 'payment' ? (
-        <div className="max-w-md mx-auto bg-white p-8 rounded-3xl border border-zinc-100 shadow-xl space-y-6">
-          <div className="p-4 bg-zinc-50 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-sm text-zinc-500 font-medium">Selected Plan</p>
-              <p className="font-bold text-zinc-900">{selectedPackage?.name}</p>
-            </div>
-            <p className="text-xl font-black text-primary">₹{selectedPackage?.price}</p>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={() => handleSelectMethod('card')}
-              className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-zinc-100 hover:border-primary hover:bg-primary/5 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center group-hover:bg-primary/10">
-                  <CreditCard className="text-zinc-500 group-hover:text-primary" />
-                </div>
-                <span className="font-bold text-zinc-900">Credit / Debit Card</span>
-              </div>
-              <Check className="text-primary opacity-0 group-hover:opacity-100" />
-            </button>
-
-            <button
-              onClick={() => handleSelectMethod('upi')}
-              className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-zinc-100 hover:border-primary hover:bg-primary/5 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center group-hover:bg-primary/10">
-                  <Smartphone className="text-zinc-500 group-hover:text-primary" />
-                </div>
-                <span className="font-bold text-zinc-900">UPI (GPay, PhonePe, etc.)</span>
-              </div>
-              <Check className="text-primary opacity-0 group-hover:opacity-100" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => setPaymentStep('plans')}
-            className="w-full text-zinc-500 font-bold py-2 hover:text-zinc-900 transition-all"
-          >
-            Back to Plans
-          </button>
-        </div>
       ) : (
-        <div className="max-w-md mx-auto bg-white p-8 rounded-3xl border border-zinc-100 shadow-xl space-y-6 relative overflow-hidden">
+        <div className="max-w-md mx-auto bg-white p-10 rounded-[48px] border border-zinc-100 shadow-2xl space-y-8 relative overflow-hidden">
           {loading && (
             <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-4">
               <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -258,114 +221,87 @@ export default function SubscriptionPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold text-zinc-900">Enter Payment Details</h3>
-            <span className="text-xs font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded">
-              {paymentMethod === 'card' ? 'Card Payment' : 'UPI Payment'}
-            </span>
+          <div className="text-center space-y-2">
+            <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">QR Payment</h3>
+            <div className="inline-block px-4 py-1 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest">
+              UPI Transfer
+            </div>
           </div>
 
-          {paymentMethod === 'card' ? (
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-500 uppercase">Card Number</label>
-                <input 
-                  type="text" 
-                  placeholder="XXXX XXXX XXXX XXXX"
-                  className="w-full p-4 bg-zinc-50 border border-zinc-100 rounded-2xl outline-none focus:border-primary transition-all"
-                  value={paymentDetails.cardNumber}
-                  onChange={e => setPaymentDetails({...paymentDetails, cardNumber: e.target.value})}
+          <div className="bg-zinc-50 p-8 rounded-[32px] text-center space-y-2 border border-zinc-100">
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Payment Amount</p>
+            <div className="text-5xl font-black text-primary tracking-tighter">₹{selectedPackage?.price}</div>
+            <p className="text-sm font-bold text-zinc-500">{selectedPackage?.name}</p>
+          </div>
+
+          <div className="space-y-6">
+            {paymentSettings?.qrCodeUrl && (
+              <div className="flex flex-col items-center justify-center p-8 bg-white rounded-[40px] border-2 border-zinc-100 shadow-inner">
+                <img 
+                  src={paymentSettings.qrCodeUrl} 
+                  alt="UPI QR Code" 
+                  className="w-64 h-64 object-contain rounded-2xl shadow-xl mb-6"
+                  referrerPolicy="no-referrer"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-500 uppercase">Expiry Date</label>
-                  <input 
-                    type="text" 
-                    placeholder="MM/YY"
-                    className="w-full p-4 bg-zinc-50 border border-zinc-100 rounded-2xl outline-none focus:border-primary transition-all"
-                    value={paymentDetails.expiry}
-                    onChange={e => setPaymentDetails({...paymentDetails, expiry: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-500 uppercase">CVV</label>
-                  <input 
-                    type="password" 
-                    placeholder="***"
-                    className="w-full p-4 bg-zinc-50 border border-zinc-100 rounded-2xl outline-none focus:border-primary transition-all"
-                    value={paymentDetails.cvv}
-                    onChange={e => setPaymentDetails({...paymentDetails, cvv: e.target.value})}
-                  />
+                <div className="flex items-center gap-2 text-zinc-400">
+                  <Smartphone className="w-4 h-4" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Scan with any UPI App</p>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {paymentSettings?.qrCodeUrl && (
-                <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 rounded-3xl border-2 border-dashed border-zinc-200">
-                  <img 
-                    src={paymentSettings.qrCodeUrl} 
-                    alt="UPI QR Code" 
-                    className="w-48 h-48 object-contain rounded-xl shadow-lg mb-4"
-                    referrerPolicy="no-referrer"
-                  />
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Scan to Pay</p>
+            )}
+            
+            <div className="space-y-4">
+              <div className="p-6 bg-zinc-900 rounded-[32px] text-white space-y-3 shadow-xl">
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">UPI ID</span>
+                  <span className="font-bold text-primary font-mono">{paymentSettings?.upiId || 'Not Configured'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Payee Name</span>
+                  <span className="font-bold text-white">{paymentSettings?.upiName || 'Not Configured'}</span>
+                </div>
+              </div>
+
+              {paymentSettings?.instructions && (
+                <div className="p-6 bg-amber-50 rounded-[32px] border border-amber-100">
+                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Important Instructions</p>
+                  <p className="text-xs text-amber-900 leading-relaxed font-medium">{paymentSettings.instructions}</p>
                 </div>
               )}
-              
-              <div className="space-y-4">
-                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">UPI ID</span>
-                    <span className="font-bold text-primary">{paymentSettings?.upiId || 'Not Configured'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Payee Name</span>
-                    <span className="font-bold text-zinc-900">{paymentSettings?.upiName || 'Not Configured'}</span>
-                  </div>
-                </div>
 
-                {paymentSettings?.instructions && (
-                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                    <p className="text-[10px] font-bold text-zinc-400 uppercase mb-2">Instructions</p>
-                    <p className="text-xs text-zinc-600 leading-relaxed">{paymentSettings.instructions}</p>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-500 uppercase">Transaction ID / UTR Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="Enter 12-digit UTR number"
-                    className="w-full p-4 bg-zinc-50 border border-zinc-100 rounded-2xl outline-none focus:border-primary transition-all font-mono"
-                    value={paymentDetails.upiId}
-                    onChange={e => setPaymentDetails({...paymentDetails, upiId: e.target.value})}
-                  />
-                  <p className="text-[10px] text-zinc-400 italic">Enter the transaction ID after successful payment for verification.</p>
-                </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-4">Transaction ID / UTR Number</label>
+                <input 
+                  type="text" 
+                  placeholder="Enter 12-digit UTR number"
+                  className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-[24px] outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono font-bold text-zinc-900"
+                  value={paymentDetails.upiId}
+                  onChange={e => setPaymentDetails({...paymentDetails, upiId: e.target.value})}
+                />
+                <p className="text-[10px] text-zinc-400 italic text-center">Enter the transaction ID after successful payment for verification.</p>
               </div>
             </div>
-          )}
+          </div>
 
           <button
             onClick={processPayment}
-            className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+            disabled={!paymentDetails.upiId || loading}
+            className="w-full py-6 bg-primary text-white rounded-[32px] text-xl font-black uppercase tracking-widest shadow-2xl shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
           >
-            Pay ₹{selectedPackage?.price} Now
+            Confirm Payment
           </button>
 
           <button
-            onClick={() => setPaymentStep('payment')}
-            className="w-full text-zinc-500 font-bold py-2 hover:text-zinc-900 transition-all"
+            onClick={() => setPaymentStep('plans')}
+            className="w-full text-zinc-400 font-bold py-2 hover:text-zinc-900 transition-all text-sm uppercase tracking-widest"
           >
-            Change Payment Method
+            Cancel and Go Back
           </button>
         </div>
       )}
 
       {/* Addons Section */}
-      {paymentStep === 'plans' && packages.some(p => p.type === 'addon') && (
+      {paymentStep === 'plans' && initialView !== 'addons' && packages.some(p => p.type === 'addon') && (
         <div className="mt-16 space-y-6">
           <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
             <Zap className="text-amber-500" />

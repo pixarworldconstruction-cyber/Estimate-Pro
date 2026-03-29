@@ -30,6 +30,9 @@ export interface Company {
   subscriptionStatus?: 'active' | 'past_due' | 'unpaid' | 'canceled' | 'trialing';
   currentPeriodEnd?: any;
   paymentMethod?: 'card' | 'upi';
+  gstEnabled?: boolean;
+  usedEstimates?: number;
+  website?: string;
 }
 
 export interface PricingPackage {
@@ -64,12 +67,16 @@ export interface Staff {
   permissions?: string[]; // List of feature IDs they can access
   mobile?: string;
   address?: string;
+  tempPassword?: string;
+  position?: 'Accountant' | 'Manager' | 'Marketing Executive' | 'Sales Executive' | 'Site Engineer' | 'Site Supervisor' | 'Civil Engineer' | 'Custom' | string;
 }
 
 export interface Client {
   id: string;
   companyId: string;
   name: string;
+  email: string;
+  phone: string;
   currentAddress: string;
   siteAddress: string;
   mob1: string;
@@ -87,6 +94,8 @@ export interface Item {
   name: string;
   price: number;
   gst: number;
+  unit: string;
+  gstSlab: 0 | 5 | 12 | 18 | 28;
 }
 
 export interface EstimateItem {
@@ -134,6 +143,61 @@ export interface Estimate {
   estimateNumber: string;
   gstOverride?: number;
   isGstManual?: boolean;
+}
+
+export interface InvoiceItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  gstSlab: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: string;
+  companyId: string;
+  clientId: string;
+  clientName: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  gstTotal: number;
+  total: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  dueDate: string;
+  createdAt: any;
+  updatedAt: any;
+  invoiceNumber: string;
+  notes?: string;
+  estimateId?: string;
+}
+
+export interface Project {
+  id: string;
+  companyId: string;
+  clientId: string;
+  name: string;
+  description: string;
+  status: 'active' | 'completed' | 'on-hold' | 'cancelled';
+  startDate: string;
+  location: string;
+  assignedStaffIds: string[];
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface DailyReport {
+  id: string;
+  projectId: string;
+  staffId: string;
+  staffName: string;
+  date: string;
+  todayWork: string;
+  workCompleted: string;
+  workProcess: string;
+  notes?: string;
+  createdAt: any;
 }
 
 export interface Reminder {

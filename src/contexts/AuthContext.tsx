@@ -8,7 +8,8 @@ import {
   updatePassword,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { auth, db } from '../firebase';
+import { auth, db, rtdb } from '../firebase';
+import { ref, set, onDisconnect, onValue, serverTimestamp as rtdbTimestamp } from 'firebase/database';
 import { doc, getDoc, onSnapshot, setDoc, query, where, getDocs, collection, deleteDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Staff, Company } from '../types';
 import { toDate } from '../lib/utils';
@@ -117,6 +118,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentStaff) {
           setStaff(currentStaff);
+          
+          // Track online status in RTDB
+          if (currentStaff.companyId) {
+            const statusRef = ref(rtdb, `presence/${currentStaff.companyId}/${user.uid}`);
+            set(statusRef, {
+              name: currentStaff.name,
+              role: currentStaff.role,
+              lastActive: rtdbTimestamp(),
+              online: true
+            });
+            onDisconnect(statusRef).set({
+              name: currentStaff.name,
+              role: currentStaff.role,
+              lastActive: rtdbTimestamp(),
+              online: false
+            });
+          }
         } else {
           setStaff(null);
         }

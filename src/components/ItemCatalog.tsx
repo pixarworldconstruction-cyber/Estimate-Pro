@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, order
 import { Plus, Search, Trash2, Edit2, Package, IndianRupee, Percent } from 'lucide-react';
 import { Item } from '../types';
 import ConfirmModal from './ConfirmModal';
-import { formatCurrency } from '../lib/utils';
+import { cn, formatCurrency } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 
@@ -18,8 +18,14 @@ export default function ItemCatalog() {
   const [formData, setFormData] = useState<Partial<Item>>({
     name: '',
     price: 0,
-    gst: 18
+    gst: 18,
+    unit: 'Nos',
+    gstSlab: 18
   });
+  const [customUnit, setCustomUnit] = useState('');
+
+  const units = ['Nos', 'Kg', 'Mtr', 'Sq.Ft', 'Cu.Ft', 'Bag', 'Ltr', 'Box', 'Set', 'Custom'];
+  const gstSlabs: (0 | 5 | 12 | 18 | 28)[] = [0, 5, 12, 18, 28];
 
   useEffect(() => {
     if (!staff) return;
@@ -42,6 +48,7 @@ export default function ItemCatalog() {
 
     const dataToSave = {
       ...formData,
+      unit: formData.unit === 'Custom' ? customUnit : formData.unit,
       companyId: staff.companyId
     };
 
@@ -72,7 +79,7 @@ export default function ItemCatalog() {
         <button
           onClick={() => {
             setSelectedItem(null);
-            setFormData({ name: '', price: 0, gst: 18 });
+            setFormData({ name: '', price: 0, gst: 18, unit: 'Nos', gstSlab: 18 });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
@@ -98,6 +105,7 @@ export default function ItemCatalog() {
           <thead>
             <tr className="bg-zinc-50 border-b border-zinc-100">
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Item Name</th>
+              <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Unit</th>
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Price (Base)</th>
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">GST %</th>
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Total Price</th>
@@ -114,6 +122,9 @@ export default function ItemCatalog() {
                     </div>
                     <span className="font-bold text-zinc-900">{item.name}</span>
                   </div>
+                </td>
+                <td className="px-6 py-4 text-zinc-600">
+                  <span className="px-2 py-1 bg-zinc-100 rounded text-[10px] font-bold uppercase">{item.unit || 'Nos'}</span>
                 </td>
                 <td className="px-6 py-4 text-zinc-600">{formatCurrency(item.price)}</td>
                 <td className="px-6 py-4 text-zinc-600">{item.gst}%</td>
@@ -169,6 +180,36 @@ export default function ItemCatalog() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Unit</label>
+                <div className="flex flex-col gap-2">
+                  <select
+                    value={units.includes(formData.unit || '') ? formData.unit : 'Custom'}
+                    onChange={e => {
+                      if (e.target.value !== 'Custom') {
+                        setFormData(prev => ({ ...prev, unit: e.target.value }));
+                      } else {
+                        setFormData(prev => ({ ...prev, unit: 'Custom' }));
+                      }
+                    }}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
+                  >
+                    {units.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                  {(formData.unit === 'Custom' || !units.includes(formData.unit || '')) && (
+                    <input
+                      type="text"
+                      placeholder="Enter Custom Unit"
+                      value={formData.unit === 'Custom' ? '' : formData.unit}
+                      onChange={e => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                      required
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-zinc-700">Base Price (₹)</label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -182,16 +223,21 @@ export default function ItemCatalog() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-zinc-700">GST Percentage (%)</label>
-                <div className="relative">
-                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                  <input
-                    type="number"
-                    value={formData.gst}
-                    onChange={e => setFormData(prev => ({ ...prev, gst: parseFloat(e.target.value) }))}
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    required
-                  />
+                <label className="text-sm font-semibold text-zinc-700">GST Slab (%)</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {gstSlabs.map(slab => (
+                    <button
+                      key={slab}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, gst: slab, gstSlab: slab }))}
+                      className={cn(
+                        "py-2 rounded-xl border font-bold transition-all",
+                        formData.gst === slab ? "bg-primary text-white border-primary" : "bg-white text-zinc-600 border-zinc-200 hover:border-primary"
+                      )}
+                    >
+                      {slab}%
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="flex gap-4 pt-4">

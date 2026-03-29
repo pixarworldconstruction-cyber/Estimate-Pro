@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, firebaseConfig, storage } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload } from 'lucide-react';
 import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings } from '../types';
@@ -21,6 +22,8 @@ const AVAILABLE_FEATURES = [
   { id: 'converter', label: 'Unit Conversion' },
   { id: 'calculator', label: 'Scientific Calculator' },
   { id: 'construction-calc', label: 'Engineering Toolset' },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'projects', label: 'Projects' },
   { id: 'calc-brick', label: 'Brick Work Calc' },
   { id: 'calc-plaster', label: 'Plastering Calc' },
   { id: 'calc-paint', label: 'Wall Paint Calc' },
@@ -196,20 +199,29 @@ export default function SuperAdminPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only .jpg, .png and .webp files are allowed.');
+      return;
+    }
+    if (file.size > 500 * 1024) {
+      toast.error('File size must be less than 500KB.');
+      return;
+    }
+
     setUploadingQR(true);
     try {
       const storageRef = ref(storage, 'settings/payment/qr_code');
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      await new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', null, reject, async () => {
-          const url = await getDownloadURL(storageRef);
-          setPaymentSettings(prev => ({ ...prev, qrCodeUrl: url }));
-          resolve(url);
-        });
-      });
+      // Use uploadBytes for faster upload of small files
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setPaymentSettings(prev => ({ ...prev, qrCodeUrl: url }));
+      toast.success('QR Code uploaded successfully!');
     } catch (err: any) {
+      console.error('QR Upload failed', err);
       setError("Failed to upload QR code: " + err.message);
+      toast.error('QR Upload failed: ' + err.message);
     } finally {
       setUploadingQR(false);
     }
@@ -315,7 +327,7 @@ export default function SuperAdminPanel() {
       setEditTimeLimit(7);
       setPlanName('Free Trial');
       setTrialDays(14);
-      setSelectedFeatures(['clients', 'estimates', 'items', 'reminders']);
+      setSelectedFeatures(['clients', 'estimates', 'invoices', 'projects', 'items', 'reminders']);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1729,8 +1741,17 @@ export default function SuperAdminPanel() {
                   <textarea
                     value={paymentSettings.instructions}
                     onChange={e => setPaymentSettings({ ...paymentSettings, instructions: e.target.value })}
-                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-32"
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
                     placeholder="e.g. Please share the screenshot of payment on WhatsApp after successful transaction."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Bank Details (for Card/Bank Payments)</label>
+                  <textarea
+                    value={paymentSettings.bankDetails || ''}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, bankDetails: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
+                    placeholder="Enter Bank Name, A/c No, IFSC, etc."
                   />
                 </div>
                 <button

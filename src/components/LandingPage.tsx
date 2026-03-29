@@ -425,7 +425,7 @@ export default function LandingPage() {
             <span className="text-lg font-black text-zinc-900 tracking-tight">Estimate Pro</span>
           </div>
           <div className="text-zinc-400 text-sm font-medium">
-            © 2026 Construction Estimate Pro. All rights reserved.
+            © 2026 Construction Pro. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
             <button 

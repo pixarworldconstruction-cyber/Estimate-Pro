@@ -27,12 +27,13 @@ import { OperationType, handleFirestoreError } from '../firebase';
 import ConfirmModal from './ConfirmModal';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import LivePresence from './LivePresence';
 
 export default function Dashboard({ setActiveTab, setSelectedEstimateId }: { 
   setActiveTab: (tab: string) => void;
   setSelectedEstimateId?: (id: string | null, mode?: 'view' | 'edit') => void;
 }) {
-  const { staff, company } = useAuth();
+  const { staff, company, isSuperAdmin } = useAuth();
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -67,7 +68,11 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
   useEffect(() => {
     if (!staff) return;
 
-    const unsubClients = onSnapshot(query(collection(db, 'clients'), where('companyId', '==', staff.companyId)), (snapshot) => {
+    const clientsQuery = isSuperAdmin 
+      ? query(collection(db, 'clients'))
+      : query(collection(db, 'clients'), where('companyId', '==', staff.companyId));
+
+    const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setStats(prev => ({ ...prev, totalClients: snapshot.size }));
       const sortedClients = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Client))
@@ -75,7 +80,11 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
       setClients(sortedClients);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
 
-    const unsubEstimates = onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', staff.companyId)), (snapshot) => {
+    const estimatesQuery = isSuperAdmin
+      ? query(collection(db, 'estimates'))
+      : query(collection(db, 'estimates'), where('companyId', '==', staff.companyId));
+
+    const unsubEstimates = onSnapshot(estimatesQuery, (snapshot) => {
       const allEstimates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Estimate));
       
       const filterByTime = (estimates: Estimate[]) => {
@@ -126,12 +135,11 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
       setRecentEstimates(sortedEstimates);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'estimates'));
 
-    const qReminders = query(
-      collection(db, 'reminders'), 
-      where('companyId', '==', staff.companyId),
-      where('status', '==', 'pending')
-    );
-    const unsubReminders = onSnapshot(qReminders, (snapshot) => {
+    const remindersQuery = isSuperAdmin
+      ? query(collection(db, 'reminders'), where('status', '==', 'pending'))
+      : query(collection(db, 'reminders'), where('companyId', '==', staff.companyId), where('status', '==', 'pending'));
+
+    const unsubReminders = onSnapshot(remindersQuery, (snapshot) => {
       setStats(prev => ({ ...prev, activeReminders: snapshot.size }));
       const sortedReminders = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Reminder))
@@ -192,6 +200,8 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
           New Estimate
         </button>
       </div>
+
+      <LivePresence />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">

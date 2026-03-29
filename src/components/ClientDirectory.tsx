@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 
 export default function ClientDirectory() {
-  const { staff } = useAuth();
+  const { staff, isSuperAdmin } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,11 +37,11 @@ export default function ClientDirectory() {
 
   useEffect(() => {
     if (!staff) return;
-    const q = query(
-      collection(db, 'clients'), 
-      where('companyId', '==', staff.companyId)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const clientsQuery = isSuperAdmin
+      ? query(collection(db, 'clients'))
+      : query(collection(db, 'clients'), where('companyId', '==', staff.companyId));
+
+    const unsubscribe = onSnapshot(clientsQuery, (snapshot) => {
       const sortedClients = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Client))
         .sort((a, b) => a.name.localeCompare(b.name));

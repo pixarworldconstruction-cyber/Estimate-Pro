@@ -5,7 +5,7 @@ import { ref, uploadBytesResumable, uploadBytes, getDownloadURL } from 'firebase
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap, TrendingUp, PenTool, Ruler, Calculator as CalcIcon, HardHat, Lock, Smartphone } from 'lucide-react';
 import { Staff, Company } from '../types';
 import { cn, toDate } from '../lib/utils';
 
@@ -21,12 +21,14 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     staffLimit: 5,
     logoUrl: '',
     ownerSignature: '',
+    gstEnabled: true,
   });
   const [staff, setStaff] = useState<Staff[]>([]);
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffMobile, setNewStaffMobile] = useState('');
   const [newStaffAddress, setNewStaffAddress] = useState('');
+  const [newStaffPosition, setNewStaffPosition] = useState('Manager');
   const [newStaffRole, setNewStaffRole] = useState<'admin' | 'staff'>('staff');
   const [uploading, setUploading] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
@@ -34,6 +36,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
   const [editName, setEditName] = useState('');
   const [editMobile, setEditMobile] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editPosition, setEditPosition] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'staff' | 'super_admin'>('staff');
   const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -45,9 +48,21 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
 
   const features = [
     { id: 'estimates', name: 'Estimates', icon: FileText },
+    { id: 'invoices', name: 'Invoices', icon: FileText },
+    { id: 'projects', name: 'Projects', icon: HardHat },
     { id: 'clients', name: 'Clients', icon: Users },
     { id: 'items', name: 'Items', icon: Package },
     { id: 'reminders', name: 'Reminders', icon: Bell },
+    { id: 'insights', name: 'Business Insights', icon: TrendingUp },
+    { id: 'sketch', name: 'Sketch Pad', icon: PenTool },
+    { id: 'converter', name: 'Unit Conversion', icon: Ruler },
+    { id: 'calculator', name: 'Calculator', icon: CalcIcon },
+    { id: 'construction-calc', name: 'Engineering Toolset', icon: HardHat },
+  ];
+
+  const positions = [
+    'Accountant', 'Manager', 'Marketing Executive', 'Sales Executive', 
+    'Site Engineer', 'Site Supervisor', 'Civil Engineer', 'Custom'
   ];
 
   useEffect(() => {
@@ -56,6 +71,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
       setEditName(editingStaff.name || '');
       setEditMobile(editingStaff.mobile || '');
       setEditAddress(editingStaff.address || '');
+      setEditPosition(editingStaff.position || 'Manager');
       setEditRole(editingStaff.role || 'staff');
     }
   }, [editingStaff]);
@@ -67,6 +83,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
         name: editName,
         mobile: editMobile,
         address: editAddress,
+        position: editPosition,
         role: editRole,
         permissions: staffPermissions
       });
@@ -157,30 +174,13 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
 
     try {
       const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      return new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setSuccessMessage(`Uploading logo: ${Math.round(progress)}%`);
-          }, 
-          (error) => {
-            console.error('Upload failed', error);
-            setErrorMessage('Logo upload failed: ' + error.message);
-            setUploading(false);
-            reject(error);
-          }, 
-          async () => {
-            const url = await getDownloadURL(storageRef);
-            setSettings(prev => ({ ...prev, logoUrl: url }));
-            await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
-            setSuccessMessage('Logo uploaded successfully!');
-            setUploading(false);
-            resolve(url);
-          }
-        );
-      });
+      // Use uploadBytes for faster upload of small files
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setSettings(prev => ({ ...prev, logoUrl: url }));
+      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
+      setSuccessMessage('Logo uploaded successfully!');
+      setUploading(false);
     } catch (error: any) {
       console.error('Upload failed', error);
       setErrorMessage('Logo upload failed: ' + error.message);
@@ -263,6 +263,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
         role: newStaffRole,
         uid: uid,
         companyId: currentStaff.companyId,
+        position: newStaffPosition,
         tempPassword: uid ? generatedPass : '', // Only show temp pass if we created the account
         permissions: features.map(f => f.id)
       };
@@ -477,12 +478,25 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
 
                   <div className="space-y-3">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">GST Number</label>
-                    <input
-                      type="text"
-                      value={settings.gst}
-                      onChange={e => setSettings(prev => ({ ...prev, gst: e.target.value }))}
-                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
-                    />
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="text"
+                        value={settings.gst}
+                        onChange={e => setSettings(prev => ({ ...prev, gst: e.target.value }))}
+                        className="flex-1 px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                        disabled={!settings.gstEnabled}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSettings(prev => ({ ...prev, gstEnabled: !prev.gstEnabled }))}
+                        className={cn(
+                          "px-6 py-5 rounded-3xl font-bold transition-all",
+                          settings.gstEnabled ? "bg-primary text-white" : "bg-zinc-100 text-zinc-400"
+                        )}
+                      >
+                        {settings.gstEnabled ? 'GST ON' : 'GST OFF'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -505,6 +519,17 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                 >
                   Save Identity Changes
                 </button>
+
+                <div className="pt-4 border-t border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => window.open('https://play.google.com/store/apps', '_blank')}
+                    className="w-full flex items-center justify-center gap-3 py-5 bg-primary/10 text-primary rounded-[32px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all border-2 border-primary/20"
+                  >
+                    <Smartphone className="w-6 h-6" />
+                    Download Android App
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -579,6 +604,33 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
               onChange={e => setNewStaffMobile(e.target.value)}
               className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
             />
+            <div className="flex flex-col gap-2">
+              <select
+                value={positions.includes(newStaffPosition) ? newStaffPosition : 'Custom'}
+                onChange={e => {
+                  if (e.target.value !== 'Custom') {
+                    setNewStaffPosition(e.target.value);
+                  } else {
+                    setNewStaffPosition('Custom');
+                  }
+                }}
+                className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
+              >
+                {positions.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              {(newStaffPosition === 'Custom' || !positions.includes(newStaffPosition)) && (
+                <input
+                  type="text"
+                  placeholder="Enter Custom Position"
+                  value={newStaffPosition === 'Custom' ? '' : newStaffPosition}
+                  onChange={e => setNewStaffPosition(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  required
+                />
+              )}
+            </div>
             <select
               value={newStaffRole}
               onChange={e => setNewStaffRole(e.target.value as 'admin' | 'staff')}
@@ -630,10 +682,17 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   </div>
                   <div>
                     <div className="font-bold text-zinc-900">{member.name}</div>
+                    <div className="text-[10px] font-black text-primary uppercase tracking-widest">{member.position || 'Staff'}</div>
                     <div className="text-sm text-zinc-500 flex items-center gap-2">
                       <Mail className="w-3 h-3" />
                       {member.email}
                     </div>
+                    {member.tempPassword && (
+                      <div className="mt-2 p-2 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2 text-[10px] text-amber-700">
+                        <Lock className="w-3 h-3 text-amber-500" />
+                        <span>Temp Password: <span className="font-mono font-black text-xs">{member.tempPassword}</span></span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -722,6 +781,36 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   onChange={e => setEditMobile(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Position</label>
+                <div className="flex flex-col gap-2">
+                  <select
+                    value={positions.includes(editPosition) ? editPosition : 'Custom'}
+                    onChange={e => {
+                      if (e.target.value !== 'Custom') {
+                        setEditPosition(e.target.value);
+                      } else {
+                        setEditPosition('Custom');
+                      }
+                    }}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary bg-white"
+                  >
+                    {positions.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  {(editPosition === 'Custom' || !positions.includes(editPosition)) && (
+                    <input
+                      type="text"
+                      placeholder="Enter Custom Position"
+                      value={editPosition === 'Custom' ? '' : editPosition}
+                      onChange={e => setEditPosition(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                      required
+                    />
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-bold text-zinc-700">Role</label>

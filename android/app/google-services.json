@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "562877463121",
+    "firebase_url": "https://construction-estimate-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "construction-estimate-pro",
+    "storage_bucket": "construction-estimate-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:562877463121:android:e80d394606f726428b1670",
+        "android_client_info": {
+          "package_name": "Construction.Estimate.Pro.A"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "562877463121-ge40ctg2g1augd4un3ohn9pdjrmet0ti.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCz4QdlxyOnRjbwJ5yWUjQdlThWKbKtmm0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "562877463121-ge40ctg2g1augd4un3ohn9pdjrmet0ti.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

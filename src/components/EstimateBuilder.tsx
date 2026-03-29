@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp, where, increment } from 'firebase/firestore';
 import { Plus, Search, Trash2, Edit2, FileText, Download, Share2, Save, User, Package, PlusCircle, MinusCircle, History, CheckCircle, Clock, Eye, IndianRupee, Calculator, Bell, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Estimate, Client, Item, EstimateItem, Company } from '../types';
@@ -18,7 +18,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
   initialMode?: 'view' | 'edit';
   onClearInitialId?: () => void;
 }) {
-  const { company, staff } = useAuth();
+  const { company, staff, isSuperAdmin } = useAuth();
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -70,11 +70,11 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
   useEffect(() => {
     if (!staff) return;
     
-    const qEstimates = query(
-      collection(db, 'estimates'), 
-      where('companyId', '==', staff.companyId)
-    );
-    const unsubEstimates = onSnapshot(qEstimates, (snapshot) => {
+    const estimatesQuery = isSuperAdmin
+      ? query(collection(db, 'estimates'))
+      : query(collection(db, 'estimates'), where('companyId', '==', staff.companyId));
+
+    const unsubEstimates = onSnapshot(estimatesQuery, (snapshot) => {
       const sortedEstimates = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Estimate))
         .sort((a, b) => {
@@ -85,22 +85,22 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       setEstimates(sortedEstimates);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'estimates'));
 
-    const qClients = query(
-      collection(db, 'clients'), 
-      where('companyId', '==', staff.companyId)
-    );
-    const unsubClients = onSnapshot(qClients, (snapshot) => {
+    const clientsQuery = isSuperAdmin
+      ? query(collection(db, 'clients'))
+      : query(collection(db, 'clients'), where('companyId', '==', staff.companyId));
+
+    const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       const sortedClients = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Client))
         .sort((a, b) => a.name.localeCompare(b.name));
       setClients(sortedClients);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
     
-    const qItems = query(
-      collection(db, 'items'), 
-      where('companyId', '==', staff.companyId)
-    );
-    const unsubItems = onSnapshot(qItems, (snapshot) => {
+    const itemsQuery = isSuperAdmin
+      ? query(collection(db, 'items'))
+      : query(collection(db, 'items'), where('companyId', '==', staff.companyId));
+
+    const unsubItems = onSnapshot(itemsQuery, (snapshot) => {
       const sortedItems = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Item))
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -205,7 +205,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
     if (!staff?.companyId) return;
 
     // Check Estimate Limit for new estimates
-    if (!selectedEstimate && company?.estimateLimit && estimates.length >= company.estimateLimit) {
+    if (!selectedEstimate && company?.estimateLimit && (company.usedEstimates || 0) >= company.estimateLimit) {
       toast.error(`Estimate limit reached (${company.estimateLimit}). Please upgrade your package.`);
       return;
     }
@@ -240,6 +240,12 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       dataToSave.createdAt = serverTimestamp();
       dataToSave.revisions = 0;
       const docRef = await addDoc(collection(db, 'estimates'), dataToSave);
+      
+      // Increment usedEstimates count in company document
+      await updateDoc(doc(db, 'companies', staff.companyId), {
+        usedEstimates: increment(1)
+      });
+
       const newEstimate = { ...dataToSave, id: docRef.id, createdAt: { toDate: () => new Date() } } as any;
       setSelectedEstimate(newEstimate);
       setFormData(newEstimate);
@@ -304,10 +310,6 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
         logging: false,
         backgroundColor: '#ffffff',
         onclone: (clonedDoc) => {
-          // Remove all style and link tags to prevent html2canvas from parsing oklch colors in Tailwind v4
-          const styles = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-          styles.forEach(s => s.remove());
-
           const clonedElement = clonedDoc.querySelector('[data-pdf-content]');
           if (clonedElement instanceof HTMLElement) {
             clonedElement.style.display = 'block';
@@ -624,13 +626,13 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
           <h1 className="text-3xl font-bold text-zinc-900">Estimates</h1>
           {company?.estimateLimit && (
             <p className="text-xs text-zinc-500 mt-1">
-              Usage: <span className="font-bold text-primary">{estimates.length} / {company.estimateLimit}</span> Estimates
+              Usage: <span className="font-bold text-primary">{company.usedEstimates || 0} / {company.estimateLimit}</span> Estimates
             </p>
           )}
         </div>
         <button
           onClick={() => {
-            if (company?.estimateLimit && estimates.length >= company.estimateLimit) {
+            if (company?.estimateLimit && (company.usedEstimates || 0) >= company.estimateLimit) {
               toast.error(`Estimate limit reached (${company.estimateLimit}). Please upgrade your package.`);
               return;
             }
@@ -1640,10 +1642,10 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
               </div>
             </div>
             <div style={{ textAlign: 'right', fontSize: '9px', color: '#475569', lineHeight: '1.4' }}>
-              <p style={{ margin: 0 }}>CIN : {company?.cin || 'U43299GJ2024PTC150534'}</p>
-              <p style={{ margin: 0 }}>GST : {company?.gst || '24AAOCP8536H1Z4'}</p>
-              <p style={{ margin: 0 }}>Mo: {company?.phone || '+91 6354753565'}</p>
-              <p style={{ margin: 0 }}>Email: {company?.email || 'pixarworldconstruction@gmail.com'}</p>
+              {company?.cin && <p style={{ margin: 0 }}>CIN : {company.cin}</p>}
+              {company?.gst && <p style={{ margin: 0 }}>GST : {company.gst}</p>}
+              {company?.phone && <p style={{ margin: 0 }}>Mo: {company.phone}</p>}
+              {company?.email && <p style={{ margin: 0 }}>Email: {company.email}</p>}
             </div>
           </div>
 
@@ -1758,7 +1760,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
           <div style={{ position: 'absolute', bottom: '20mm', left: '20mm', right: '20mm' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
               <div style={{ fontSize: '9px', color: '#94a3b8' }}>
-                <p style={{ margin: 0 }}>www.pixarworldconstruction.in</p>
+                <p style={{ margin: 0 }}>{company?.website || 'www.pixarworldconstruction.in'}</p>
               </div>
               <div style={{ textAlign: 'center', width: '200px' }}>
                 <div style={{ borderTop: '1px solid #0f172a', marginBottom: '5px' }}></div>

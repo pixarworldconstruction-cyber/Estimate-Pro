@@ -61,7 +61,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
             <Construction className="text-white w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-bold text-zinc-900 mb-2">Construction Estimate Pro</h1>
+          <h1 className="text-3xl font-bold text-zinc-900 mb-2">Construction Pro</h1>
           <p className="text-zinc-500">Professional estimate management for construction projects.</p>
         </div>
 

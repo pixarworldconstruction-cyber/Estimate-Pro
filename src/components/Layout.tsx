@@ -22,7 +22,12 @@ import {
   TrendingUp,
   Database,
   HardHat,
-  Mail
+  Mail,
+  Receipt,
+  Briefcase,
+  Zap,
+  PlusCircle,
+  Smartphone
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -57,13 +62,15 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         ...(company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients')) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
         ...(company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates')) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
+        ...(company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices')) ? [{ id: 'invoices', label: 'Invoices', icon: Receipt }] : []),
+        ...(company?.features?.includes('projects') && (isAdmin || staff?.permissions?.includes('projects')) ? [{ id: 'projects', label: 'Projects', icon: Briefcase }] : []),
         ...(company?.features?.includes('items') && (isAdmin || staff?.permissions?.includes('items')) ? [{ id: 'items', label: 'Items', icon: Package }] : []),
         ...(company?.features?.includes('reminders') && (isAdmin || staff?.permissions?.includes('reminders')) ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),
-        ...(company?.features?.includes('insights') ? [{ id: 'insights', label: 'Business Insights', icon: TrendingUp }] : []),
-        ...(company?.features?.includes('sketch') ? [{ id: 'sketch', label: 'Sketch Pad', icon: PenTool }] : []),
-        ...(company?.features?.includes('converter') ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
-        ...(company?.features?.includes('calculator') ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
-        ...(company?.features?.includes('construction-calc') ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
+        ...(company?.features?.includes('insights') && (isAdmin || staff?.permissions?.includes('insights')) ? [{ id: 'insights', label: 'Business Insights', icon: TrendingUp }] : []),
+        ...(company?.features?.includes('sketch') && (isAdmin || staff?.permissions?.includes('sketch')) ? [{ id: 'sketch', label: 'Sketch Pad', icon: PenTool }] : []),
+        ...(company?.features?.includes('converter') && (isAdmin || staff?.permissions?.includes('converter')) ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
+        ...(company?.features?.includes('calculator') && (isAdmin || staff?.permissions?.includes('calculator')) ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
+        ...(company?.features?.includes('construction-calc') && (isAdmin || staff?.permissions?.includes('construction-calc')) ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
         { id: 'civil-drawing', label: 'Civil Drawing', icon: PenTool },
         ...(isAdmin ? [{ id: 'admin', label: 'Company Identity', icon: Settings }] : []),
         { id: 'profile', label: 'My Profile', icon: User },
@@ -107,7 +114,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
               <Construction className="text-white w-5 h-5" />
             </div>
           )}
-          {!isCollapsed && <span className="font-bold text-zinc-900 truncate">{company?.name || (isSuperAdmin ? 'Super Admin' : 'Estimate Pro')}</span>}
+          {!isCollapsed && <span className="font-bold text-zinc-900 truncate">{company?.name || (isSuperAdmin ? 'Super Admin' : 'Construction Pro')}</span>}
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
@@ -141,6 +148,46 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         </nav>
 
         <div className={cn("p-4 border-t border-zinc-100", isCollapsed && "px-0")}>
+          {isAdmin && !isSuperAdmin && (
+            <>
+              <button
+                onClick={() => setActiveTab('subscription')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium mb-2",
+                  activeTab === 'subscription' 
+                    ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                    : "text-zinc-500 hover:bg-zinc-50"
+                )}
+              >
+                <Zap className={cn("w-5 h-5 shrink-0", activeTab === 'subscription' ? "text-white" : "text-primary")} />
+                {!isCollapsed && <span>Upgrade Plan</span>}
+                {isCollapsed && (
+                  <div className="absolute left-full ml-4 px-3 py-2 bg-primary text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap z-[100]">
+                    Upgrade Plan
+                  </div>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('addons')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium mb-2",
+                  activeTab === 'addons' 
+                    ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                    : "text-zinc-500 hover:bg-zinc-50"
+                )}
+              >
+                <PlusCircle className={cn("w-5 h-5 shrink-0", activeTab === 'addons' ? "text-white" : "text-primary")} />
+                {!isCollapsed && <span>Addons</span>}
+                {isCollapsed && (
+                  <div className="absolute left-full ml-4 px-3 py-2 bg-primary text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap z-[100]">
+                    Addons
+                  </div>
+                )}
+              </button>
+            </>
+          )}
+
           <button
             onClick={logout}
             className={cn(
@@ -163,7 +210,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-zinc-200 z-50 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Construction className="text-primary w-6 h-6" />
-          <span className="font-bold text-zinc-900">Estimate Pro</span>
+          <span className="font-bold text-zinc-900">Construction Pro</span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(true)}>
           <Menu className="w-6 h-6 text-zinc-600" />
@@ -173,20 +220,20 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/50 z-[60] md:hidden">
-          <div className="absolute right-0 top-0 bottom-0 w-64 bg-white p-6">
-            <div className="flex justify-between items-center mb-8">
+          <div className="absolute right-0 top-0 bottom-0 w-64 bg-white flex flex-col">
+            <div className="p-6 flex justify-between items-center border-b border-zinc-100">
               <span className="font-bold text-zinc-900">Menu</span>
               <button onClick={() => setIsMobileMenuOpen(false)}>
                 <X className="w-6 h-6 text-zinc-600" />
               </button>
             </div>
-            <nav className="space-y-2">
+            <nav className="flex-1 overflow-y-auto p-6 space-y-2">
               {navItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
                   className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium",
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-left",
                     activeTab === item.id 
                       ? "bg-primary text-white" 
                       : "text-zinc-500 hover:bg-zinc-50"
@@ -198,7 +245,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
               ))}
               <button
                 onClick={logout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium mt-4"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium mt-4 text-left"
               >
                 <LogOut className="w-5 h-5" />
                 Logout
