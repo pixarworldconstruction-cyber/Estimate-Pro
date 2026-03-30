@@ -17,6 +17,8 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     gst: '',
     pan: '',
     tan: '',
+    cin: '',
+    tin: '',
     themeColor: '#10b981',
     staffLimit: 5,
     logoUrl: '',
@@ -122,8 +124,10 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
         name: company.name || '',
         address: company.address || '',
         gst: company.gst || '',
+        cin: company.cin || '',
         pan: company.pan || '',
         tan: company.tan || '',
+        tin: company.tin || '',
         logoUrl: company.logoUrl || '',
         ownerSignature: company.ownerSignature || '',
         themeColor: company.themeColor || '#10b981',
@@ -148,43 +152,83 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     setSuccessMessage('Settings saved successfully!');
   };
 
+  const compressImage = (file: File, maxWidth = 800, maxHeight = 800): Promise<Blob | File> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width *= maxHeight / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob || file);
+            },
+            'image/jpeg',
+            0.8
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentStaff?.companyId) return;
 
-    // Constraints: .jpg, .png, .webp, size < 200KB
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       setErrorMessage('Only .jpg, .png and .webp files are allowed.');
       return;
     }
-    if (file.size > 200 * 1024) {
-      setErrorMessage('File size must be less than 200KB.');
-      return;
-    }
 
     setUploading(true);
-    setSuccessMessage('Uploading logo...');
+    setSuccessMessage('Processing logo...');
     setErrorMessage(null);
 
-    if (!navigator.onLine) {
-      setErrorMessage('You are offline. Please connect to the internet to upload files.');
-      setUploading(false);
-      return;
-    }
-
     try {
-      const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
-      // Use uploadBytes for faster upload of small files
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setSettings(prev => ({ ...prev, logoUrl: url }));
-      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
-      setSuccessMessage('Logo uploaded successfully!');
+      const compressedFile = await compressImage(file, 800, 800);
+      const base64 = await blobToBase64(compressedFile as Blob);
+      
+      setSettings(prev => ({ ...prev, logoUrl: base64 }));
+      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: base64 });
+      
+      setSuccessMessage('Logo updated successfully!');
       setUploading(false);
     } catch (error: any) {
-      console.error('Upload failed', error);
-      setErrorMessage('Logo upload failed: ' + error.message);
+      console.error('Update failed', error);
+      setErrorMessage('Logo update failed: ' + error.message);
       setUploading(false);
     }
   };
@@ -194,18 +238,19 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     if (!file || !currentStaff?.companyId) return;
 
     setUploading(true);
+    setSuccessMessage('Processing signature...');
     try {
-      const storageRef = ref(storage, `companies/${currentStaff.companyId}/signature`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setSettings(prev => ({ ...prev, ownerSignature: url }));
-      // Update Firestore immediately
-      await updateDoc(doc(db, 'companies', currentStaff.companyId), { ownerSignature: url });
-      setSuccessMessage('Signature uploaded successfully!');
+      const compressedFile = await compressImage(file, 400, 200);
+      const base64 = await blobToBase64(compressedFile as Blob);
+      
+      setSettings(prev => ({ ...prev, ownerSignature: base64 }));
+      await updateDoc(doc(db, 'companies', currentStaff.companyId), { ownerSignature: base64 });
+      
+      setSuccessMessage('Signature updated successfully!');
+      setUploading(false);
     } catch (error: any) {
-      console.error('Upload failed', error);
-      setErrorMessage('Signature upload failed: ' + error.message);
-    } finally {
+      console.error('Update failed', error);
+      setErrorMessage('Signature update failed: ' + error.message);
       setUploading(false);
     }
   };
@@ -430,6 +475,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                         alt="Logo" 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer" 
+                        crossOrigin="anonymous"
                       />
                     ) : (
                       settings.name?.[0] || 'P'
@@ -474,12 +520,13 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Public Email</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Email Id</label>
                     <input
                       type="email"
                       value={settings.email || ''}
                       onChange={e => setSettings(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Business Email Address"
                     />
                   </div>
 
@@ -523,6 +570,50 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                         {settings.gstEnabled ? 'GST ON' : 'GST OFF'}
                       </button>
                     </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">CIN Number</label>
+                    <input
+                      type="text"
+                      value={settings.cin || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, cin: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Corporate Identification Number"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">TIN Number</label>
+                    <input
+                      type="text"
+                      value={settings.tin || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, tin: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Tax Identification Number"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">PAN Number</label>
+                    <input
+                      type="text"
+                      value={settings.pan || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, pan: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Permanent Account Number"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">TAN Number</label>
+                    <input
+                      type="text"
+                      value={settings.tan || ''}
+                      onChange={e => setSettings(prev => ({ ...prev, tan: e.target.value }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Tax Deduction Account Number"
+                    />
                   </div>
 
                   <div className="space-y-3">

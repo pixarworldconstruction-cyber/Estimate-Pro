@@ -3,6 +3,19 @@
 @theme {
   --color-primary: var(--primary-color);
   --color-primary-light: var(--primary-color-light);
+  
+  /* Override zinc colors with hex to avoid oklch issues in html2canvas */
+  --color-zinc-50: #f9fafb;
+  --color-zinc-100: #f3f4f6;
+  --color-zinc-200: #e5e7eb;
+  --color-zinc-300: #d1d5db;
+  --color-zinc-400: #9ca3af;
+  --color-zinc-500: #6b7280;
+  --color-zinc-600: #4b5563;
+  --color-zinc-700: #374151;
+  --color-zinc-800: #1f2937;
+  --color-zinc-900: #111827;
+  --color-zinc-950: #030712;
 }
 
 :root {

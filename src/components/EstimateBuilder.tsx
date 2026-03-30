@@ -301,15 +301,46 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       }));
 
       // Extra wait for layout and fonts
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const canvas = await html2canvas(element, { 
         scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false, // Changed to false to prevent tainted canvas
         logging: false,
         backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
         onclone: (clonedDoc) => {
+          // Fix for html2canvas not supporting oklch colors (Tailwind v4)
+          const allElements = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i] as HTMLElement;
+            const style = window.getComputedStyle(el);
+            
+            // Check common color properties
+            const props = ['color', 'backgroundColor', 'borderColor', 'fill', 'stroke'];
+            props.forEach(prop => {
+              const val = style.getPropertyValue(prop);
+              if (val && val.includes('oklch')) {
+                // Force standard colors for common Tailwind classes
+                if (el.classList.contains('bg-primary')) el.style.backgroundColor = '#10b981';
+                else if (el.classList.contains('bg-zinc-900')) el.style.backgroundColor = '#18181b';
+                else if (el.classList.contains('bg-zinc-50')) el.style.backgroundColor = '#f8fafc';
+                else if (el.classList.contains('text-zinc-900')) el.style.color = '#18181b';
+                else if (el.classList.contains('text-zinc-500')) el.style.color = '#71717a';
+                else if (el.classList.contains('border-zinc-900')) el.style.borderColor = '#18181b';
+                else if (el.classList.contains('border-zinc-200')) el.style.borderColor = '#e4e4e7';
+                else {
+                  // Generic fallback if we can't match a class
+                  if (prop === 'color') el.style.color = '#18181b';
+                  else if (prop === 'backgroundColor') el.style.backgroundColor = '#ffffff';
+                  else if (prop === 'borderColor') el.style.borderColor = '#e4e4e7';
+                }
+              }
+            });
+          }
+
           const clonedElement = clonedDoc.querySelector('[data-pdf-content]');
           if (clonedElement instanceof HTMLElement) {
             clonedElement.style.display = 'block';
@@ -320,6 +351,8 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
             clonedElement.style.margin = '0';
             clonedElement.style.padding = '20mm';
             clonedElement.style.width = '210mm';
+            clonedElement.style.height = 'auto';
+            clonedElement.style.minHeight = '297mm';
           }
         }
       });
@@ -929,6 +962,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                               alt="Logo" 
                               className="w-full h-full object-contain" 
                               referrerPolicy="no-referrer" 
+                              crossOrigin="anonymous"
                             />
                           ) : (
                             <span className="text-2xl font-black">{company?.name?.[0] || 'P'}</span>
@@ -998,8 +1032,10 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                         <tr className="bg-zinc-50">
                           <th className="border border-zinc-900 p-2 text-left w-12">Sr.</th>
                           <th className="border border-zinc-900 p-2 text-left">Item Name</th>
-                          <th className="border border-zinc-900 p-2 text-center w-20">Unit</th>
-                          <th className="border border-zinc-900 p-2 text-center w-20">Price</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">L x W</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">Area</th>
+                          <th className="border border-zinc-900 p-2 text-center w-16">Unit</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">Rate</th>
                           <th className="border border-zinc-900 p-2 text-center w-16">Qty.</th>
                           <th className="border border-zinc-900 p-2 text-right w-24">Total</th>
                         </tr>
@@ -1009,6 +1045,12 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                           <tr key={index}>
                             <td className="border border-zinc-900 p-2 text-center">{index + 1}</td>
                             <td className="border border-zinc-900 p-2 font-medium">{item.name}</td>
+                            <td className="border border-zinc-900 p-2 text-center">
+                              {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
+                            </td>
+                            <td className="border border-zinc-900 p-2 text-center">
+                              {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
+                            </td>
                             <td className="border border-zinc-900 p-2 text-center uppercase">{item.unit}</td>
                             <td className="border border-zinc-900 p-2 text-center">₹{item.price}</td>
                             <td className="border border-zinc-900 p-2 text-center">{item.qty}</td>
@@ -1016,15 +1058,15 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                           </tr>
                         ))}
                         <tr>
-                          <td colSpan={5} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">SUB TOTAL</td>
+                          <td colSpan={7} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">SUB TOTAL</td>
                           <td className="border border-zinc-900 p-2 text-right font-bold">₹{formData.subtotal?.toLocaleString('en-IN')}</td>
                         </tr>
                         <tr>
-                          <td colSpan={5} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">GST (ESTIMATED)</td>
+                          <td colSpan={7} className="border border-zinc-900 p-2 text-right font-bold text-[10px]">GST (ESTIMATED)</td>
                           <td className="border border-zinc-900 p-2 text-right font-bold">+ ₹{formData.gstAmount?.toLocaleString('en-IN')}</td>
                         </tr>
                         <tr className="bg-zinc-900 text-white">
-                          <td colSpan={5} className="border border-zinc-900 p-3 text-right font-bold text-xs">GRAND TOTAL ESTIMATED</td>
+                          <td colSpan={7} className="border border-zinc-900 p-3 text-right font-bold text-xs">GRAND TOTAL ESTIMATED</td>
                           <td className="border border-zinc-900 p-3 text-right font-bold text-lg">₹{formData.total?.toLocaleString('en-IN')}</td>
                         </tr>
                       </tbody>
@@ -1643,6 +1685,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                     alt="Logo" 
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
                     referrerPolicy="no-referrer" 
+                    crossOrigin="anonymous"
                   />
                 ) : (
                   <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'black' }}>{company?.name?.[0] || 'P'}</span>
@@ -1716,10 +1759,12 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '5%' }}>Sr.</th>
-                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '55%' }}>Item Name</th>
-                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Unit</th>
-                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Price</th>
-                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '5%', textAlign: 'center' }}>Qty.</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '35%' }}>Item Name</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>L x W</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Area</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '8%', textAlign: 'center' }}>Unit</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Rate</th>
+                <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '7%', textAlign: 'center' }}>Qty.</th>
                 <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '15%', textAlign: 'right' }}>Total</th>
               </tr>
             </thead>
@@ -1728,6 +1773,12 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                 <tr key={index}>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px' }}>{item.name}</td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>
+                    {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
+                  </td>
+                  <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>
+                    {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
+                  </td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.unit}</td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.price}</td>
                   <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.qty}</td>
@@ -1735,15 +1786,15 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                 </tr>
               ))}
               <tr>
-                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>SUB TOTAL</td>
+                <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>SUB TOTAL</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {estimateToPrint?.subtotal?.toLocaleString('en-IN')}</td>
               </tr>
               <tr>
-                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>GST (ESTIMATED)</td>
+                <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>GST (ESTIMATED)</td>
                 <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>+ ₹ {estimateToPrint?.gstAmount?.toLocaleString('en-IN')}</td>
               </tr>
               <tr style={{ backgroundColor: '#0f172a', color: 'white' }}>
-                <td colSpan={5} style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' }}>GRAND TOTAL ESTIMATED</td>
+                <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' }}>GRAND TOTAL ESTIMATED</td>
                 <td style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>₹ {estimateToPrint?.total?.toLocaleString('en-IN')}</td>
               </tr>
             </tbody>

@@ -253,7 +253,36 @@ export default function InvoiceBuilder() {
       useCORS: true,
       logging: false,
       windowWidth: invoiceRef.current.scrollWidth,
-      windowHeight: invoiceRef.current.scrollHeight
+      windowHeight: invoiceRef.current.scrollHeight,
+      onclone: (clonedDoc) => {
+        // Fix for html2canvas not supporting oklch colors (Tailwind v4)
+        const allElements = clonedDoc.getElementsByTagName('*');
+        for (let i = 0; i < allElements.length; i++) {
+          const el = allElements[i] as HTMLElement;
+          const style = window.getComputedStyle(el);
+          
+          const props = ['color', 'backgroundColor', 'borderColor', 'fill', 'stroke'];
+          props.forEach(prop => {
+            const val = style.getPropertyValue(prop);
+            if (val && val.includes('oklch')) {
+              // Force standard colors for common Tailwind classes
+              if (el.classList.contains('bg-primary')) el.style.backgroundColor = '#10b981';
+              else if (el.classList.contains('bg-zinc-900')) el.style.backgroundColor = '#18181b';
+              else if (el.classList.contains('bg-zinc-50')) el.style.backgroundColor = '#f8fafc';
+              else if (el.classList.contains('text-zinc-900')) el.style.color = '#18181b';
+              else if (el.classList.contains('text-zinc-500')) el.style.color = '#71717a';
+              else if (el.classList.contains('border-zinc-900')) el.style.borderColor = '#18181b';
+              else if (el.classList.contains('border-zinc-200')) el.style.borderColor = '#e4e4e7';
+              else {
+                // Generic fallback if we can't match a class
+                if (prop === 'color') el.style.color = '#18181b';
+                else if (prop === 'backgroundColor') el.style.backgroundColor = '#ffffff';
+                else if (prop === 'borderColor') el.style.borderColor = '#e4e4e7';
+              }
+            }
+          });
+        }
+      }
     });
     
     const imgData = canvas.toDataURL('image/png');
@@ -365,7 +394,7 @@ export default function InvoiceBuilder() {
             <div className="flex justify-between items-start mb-12">
               <div>
                 {company?.logoUrl ? (
-                  <img src={company.logoUrl} alt="Logo" className="h-16 mb-6 object-contain" referrerPolicy="no-referrer" />
+                  <img src={company.logoUrl} alt="Logo" className="h-16 mb-6 object-contain" referrerPolicy="no-referrer" crossOrigin="anonymous" />
                 ) : (
                   <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-6">
                     {company?.name?.[0]}
@@ -420,11 +449,11 @@ export default function InvoiceBuilder() {
                 <tr className="border-b-2 border-zinc-900 bg-zinc-50">
                   <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Sr.</th>
                   <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Item Name</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">L / H</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">W / D</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">L x W</th>
+                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Area</th>
                   <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Unit</th>
                   <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">GST%</th>
-                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Price</th>
+                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Rate</th>
                   <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Qty</th>
                   <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Total</th>
                 </tr>
@@ -434,8 +463,12 @@ export default function InvoiceBuilder() {
                   <tr key={idx}>
                     <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{idx + 1}</td>
                     <td className="p-3 text-xs font-bold text-zinc-900 border border-zinc-900">{item.name}</td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.length || '-'}</td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.width || '-'}</td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
+                      {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
+                    </td>
+                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
+                      {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
+                    </td>
                     <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900 uppercase">{item.unit}</td>
                     <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.gstSlab}%</td>
                     <td className="p-3 text-right text-xs font-bold text-zinc-900 border border-zinc-900">{formatCurrency(item.price)}</td>

@@ -9,6 +9,7 @@ export interface Company {
   cin?: string;
   pan?: string;
   tan?: string;
+  tin?: string;
   themeColor?: string;
   staffLimit?: number;
   estimateLimit?: number; // Max number of estimates allowed
