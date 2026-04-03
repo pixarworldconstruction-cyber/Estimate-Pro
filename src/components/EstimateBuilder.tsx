@@ -1675,295 +1675,243 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       <div style={{ position: 'fixed', top: '-9999px', left: '-9999px', zIndex: -100 }}>
         <div ref={pdfRef} data-pdf-content style={{ width: '210mm', padding: '20mm', backgroundColor: '#ffffff', color: '#18181b', fontFamily: 'sans-serif', position: 'relative', minHeight: '297mm' }}>
           {company?.estimateTemplate === 'modern' ? (
-            /* Modern Template */
-            <div style={{ fontFamily: 'Inter, sans-serif' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px' }}>
+            /* Modern Estimate Template - Dark Theme */
+            <div style={{ fontFamily: 'Inter, sans-serif', color: '#ffffff', backgroundColor: '#18181b', minHeight: '297mm', padding: '40px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '60px' }}>
                 <div>
-                  <div style={{ width: '100px', height: '100px', backgroundColor: '#f4f4f5', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', overflow: 'hidden' }}>
+                  <div style={{ width: '120px', height: '120px', backgroundColor: '#27272a', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', overflow: 'hidden', border: '1px solid #3f3f46' }}>
                     {company?.logoUrl ? (
                       <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
                     ) : (
-                      <span style={{ fontSize: '40px', fontWeight: '900', color: '#18181b' }}>{company?.name?.[0] || 'P'}</span>
+                      <span style={{ fontSize: '48px', fontWeight: '900', color: '#ffffff' }}>{company?.name?.[0] || 'P'}</span>
                     )}
                   </div>
-                  <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#18181b', margin: 0, letterSpacing: '-0.02em' }}>{company?.name}</h1>
-                  <p style={{ fontSize: '12px', color: '#71717a', maxWidth: '300px', marginTop: '5px' }}>{company?.address}</p>
+                  <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, letterSpacing: '-0.02em', color: '#ffffff' }}>{company?.name}</h1>
+                  <p style={{ fontSize: '14px', color: '#a1a1aa', maxWidth: '300px', marginTop: '8px', lineHeight: '1.5' }}>{company?.address}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ backgroundColor: '#18181b', color: 'white', padding: '10px 25px', borderRadius: '12px', display: 'inline-block', marginBottom: '15px' }}>
-                    <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estimate</h2>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#71717a' }}>
-                    <p style={{ margin: 0 }}>Number: <span style={{ color: '#18181b', fontWeight: 'bold' }}>{estimateToPrint?.estimateNumber}</span></p>
-                    <p style={{ margin: 0 }}>Date: <span style={{ color: '#18181b', fontWeight: 'bold' }}>{estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</span></p>
+                  <div style={{ color: '#f59e0b', fontSize: '48px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.05em', marginBottom: '10px', lineHeight: '1' }}>Estimate</div>
+                  <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
+                    <p style={{ margin: '4px 0' }}>Estimate No: <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{estimateToPrint?.estimateNumber}</span></p>
+                    <p style={{ margin: '4px 0' }}>Date: <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</span></p>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '40px', backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px' }}>
-                <div>
-                  <h4 style={{ fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Estimate For</h4>
-                  <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#18181b', margin: 0 }}>{estimateToPrint?.clientName}</p>
-                  <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{estimateToPrint?.siteAddress}</p>
-                  <div style={{ marginTop: '10px', fontSize: '12px' }}>
-                    <p style={{ margin: 0 }}>Mob: {estimateToPrint?.clientMob1}</p>
-                    {estimateToPrint?.clientPan && <p style={{ margin: 0 }}>PAN: {estimateToPrint.clientPan}</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '60px' }}>
+                <div style={{ backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
+                  <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Estimate For</h4>
+                  <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{estimateToPrint?.clientName}</p>
+                  <p style={{ fontSize: '14px', color: '#a1a1aa', marginTop: '8px', lineHeight: '1.5' }}>{estimateToPrint?.siteAddress}</p>
+                  <div style={{ marginTop: '15px', fontSize: '14px', color: '#ffffff' }}>
+                    <p style={{ margin: '4px 0' }}>Mob: {estimateToPrint?.clientMob1}</p>
+                    {estimateToPrint?.clientPan && <p style={{ margin: '4px 0' }}>PAN: {estimateToPrint.clientPan}</p>}
                   </div>
                 </div>
-                <div>
-                  <h4 style={{ fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Project Details</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '12px' }}>
+                <div style={{ backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
+                  <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Project Details</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '14px' }}>
                     <div>
-                      <p style={{ color: '#64748b', margin: 0 }}>Property Type</p>
-                      <p style={{ fontWeight: 'bold', color: '#18181b', margin: 0 }}>{estimateToPrint?.propertyType}</p>
+                      <p style={{ color: '#a1a1aa', margin: 0 }}>Property Type</p>
+                      <p style={{ fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{estimateToPrint?.propertyType}</p>
                     </div>
                     <div>
-                      <p style={{ color: '#64748b', margin: 0 }}>Scope</p>
-                      <p style={{ fontWeight: 'bold', color: '#18181b', margin: 0 }}>{estimateToPrint?.scopeOfWork}</p>
+                      <p style={{ color: '#a1a1aa', margin: 0 }}>Scope</p>
+                      <p style={{ fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{estimateToPrint?.scopeOfWork}</p>
                     </div>
                     <div>
-                      <p style={{ color: '#64748b', margin: 0 }}>Completion</p>
-                      <p style={{ fontWeight: 'bold', color: '#18181b', margin: 0 }}>{estimateToPrint?.completionTime || 'N/A'}</p>
+                      <p style={{ color: '#a1a1aa', margin: 0 }}>Completion</p>
+                      <p style={{ fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{estimateToPrint?.completionTime || 'N/A'}</p>
                     </div>
                     <div>
-                      <p style={{ color: '#64748b', margin: 0 }}>Budget</p>
-                      <p style={{ fontWeight: 'bold', color: '#18181b', margin: 0 }}>{estimateToPrint?.budget || 'N/A'}</p>
+                      <p style={{ color: '#a1a1aa', margin: 0 }}>Budget</p>
+                      <p style={{ fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{estimateToPrint?.budget || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px', marginBottom: '30px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
                 <thead>
-                  <tr style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    <th style={{ padding: '10px 20px', textAlign: 'left' }}>Description</th>
-                    <th style={{ padding: '10px 20px', textAlign: 'center' }}>Qty</th>
-                    <th style={{ padding: '10px 20px', textAlign: 'center' }}>Unit</th>
-                    <th style={{ padding: '10px 20px', textAlign: 'right' }}>Price</th>
-                    <th style={{ padding: '10px 20px', textAlign: 'right' }}>Total</th>
+                  <tr style={{ borderBottom: '2px solid #3f3f46' }}>
+                    <th style={{ padding: '15px 20px', textAlign: 'left', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Item Description</th>
+                    <th style={{ padding: '15px 20px', textAlign: 'center', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Qty</th>
+                    <th style={{ padding: '15px 20px', textAlign: 'center', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Unit</th>
+                    <th style={{ padding: '15px 20px', textAlign: 'right', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Price</th>
+                    <th style={{ padding: '15px 20px', textAlign: 'right', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {estimateToPrint?.items?.map((item, index) => (
-                    <tr key={index} style={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '20px', borderRadius: '16px 0 0 16px', border: '1px solid #f1f5f9', borderRight: 'none' }}>
-                        <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#18181b', margin: 0 }}>{item.name}</p>
+                    <tr key={index} style={{ borderBottom: '1px solid #27272a' }}>
+                      <td style={{ padding: '20px' }}>
+                        <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{item.name}</p>
                         {item.length && item.width ? (
-                          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Size: {item.length} x {item.width} {item.unit}</p>
+                          <p style={{ fontSize: '12px', color: '#71717a', marginTop: '4px' }}>Size: {item.length} x {item.width} {item.unit}</p>
                         ) : null}
                       </td>
-                      <td style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', fontSize: '14px', fontWeight: 'medium' }}>{item.qty}</td>
-                      <td style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', fontSize: '14px', color: '#64748b' }}>{item.unit}</td>
-                      <td style={{ padding: '20px', textAlign: 'right', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', fontSize: '14px', fontWeight: 'medium' }}>₹{item.price.toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '20px', textAlign: 'right', borderRadius: '0 16px 16px 0', border: '1px solid #f1f5f9', borderLeft: 'none', fontSize: '14px', fontWeight: 'bold', color: '#18181b' }}>₹{item.total.toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '20px', textAlign: 'center', color: '#ffffff', fontSize: '16px' }}>{item.qty}</td>
+                      <td style={{ padding: '20px', textAlign: 'center', color: '#a1a1aa', fontSize: '16px' }}>{item.unit}</td>
+                      <td style={{ padding: '20px', textAlign: 'right', color: '#ffffff', fontSize: '16px' }}>₹{item.price.toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '20px', textAlign: 'right', color: '#f59e0b', fontSize: '16px', fontWeight: 'bold' }}>₹{item.total.toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '40px' }}>
-                <div style={{ width: '300px', backgroundColor: '#18181b', color: 'white', padding: '30px', borderRadius: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px' }}>
-                    <span style={{ color: '#94a3b8' }}>Subtotal</span>
-                    <span>₹{estimateToPrint?.subtotal?.toLocaleString('en-IN')}</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ width: '350px', backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '16px' }}>
+                    <span style={{ color: '#a1a1aa' }}>Subtotal</span>
+                    <span style={{ color: '#ffffff' }}>₹{estimateToPrint?.subtotal?.toLocaleString('en-IN')}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '14px' }}>
-                    <span style={{ color: '#94a3b8' }}>GST (Estimated)</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '16px' }}>
+                    <span style={{ color: '#a1a1aa' }}>GST (Estimated)</span>
                     <span style={{ color: '#10b981' }}>+ ₹{estimateToPrint?.gstAmount?.toLocaleString('en-IN')}</span>
                   </div>
-                  <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: '20px' }}></div>
+                  <div style={{ height: '1px', backgroundColor: '#3f3f46', marginBottom: '20px' }}></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase' }}>Total</span>
-                    <span style={{ fontSize: '24px', fontWeight: '900' }}>₹{estimateToPrint?.total?.toLocaleString('en-IN')}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase' }}>Total Estimated</span>
+                    <span style={{ fontSize: '32px', fontWeight: '900', color: '#f59e0b' }}>₹{estimateToPrint?.total?.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '30px' }}>
-                <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#18181b', textTransform: 'uppercase', marginBottom: '15px' }}>Terms & Conditions</h4>
+              <div style={{ marginTop: '60px', borderTop: '1px solid #3f3f46', paddingTop: '30px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', textTransform: 'uppercase', marginBottom: '15px' }}>Terms & Conditions</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   {estimateToPrint?.terms?.map((term, index) => (
                     <div key={index} style={{ display: 'flex', gap: '10px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#cbd5e1' }}>{index + 1}</span>
-                      <p style={{ fontSize: '10px', color: '#64748b', margin: 0, lineHeight: '1.5' }}>{term}</p>
+                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#71717a' }}>{index + 1}</span>
+                      <p style={{ fontSize: '10px', color: '#a1a1aa', margin: 0, lineHeight: '1.5' }}>{term}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div style={{ marginTop: '60px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                <div style={{ fontSize: '10px', color: '#71717a' }}>
                   <p style={{ margin: 0 }}>{company?.email}</p>
                   <p style={{ margin: 0 }}>{company?.phone}</p>
                   <p style={{ margin: 0 }}>{company?.website}</p>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: '150px', height: '1px', backgroundColor: '#18181b', marginBottom: '10px' }}></div>
-                  <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#18181b', margin: 0 }}>Authorized Signatory</p>
+                  <div style={{ width: '180px', height: '1px', backgroundColor: '#3f3f46', marginBottom: '10px' }}></div>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>Authorized Signatory</p>
                 </div>
               </div>
             </div>
           ) : (
-            /* Classic Template */
-            <>
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid #fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#fbbf24' }}>
-                    {company?.logoUrl ? (
-                      <img 
-                        key={company.logoUrl}
-                        src={company.logoUrl} 
-                        alt="Logo" 
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-                        referrerPolicy="no-referrer" 
-                        crossOrigin="anonymous"
-                      />
-                    ) : (
-                      <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'black' }}>{company?.name?.[0] || 'P'}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{company?.name || 'Pixar World Construction Private Limited'}</h1>
-                    <p style={{ fontSize: '11px', color: '#475569', margin: '2px 0' }}>{company?.address || 'FF-08 Fortune Greens, Vadodara'}</p>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', fontSize: '9px', color: '#475569', lineHeight: '1.4' }}>
-                  {company?.cin && <p style={{ margin: 0 }}>CIN : {company.cin}</p>}
-                  {company?.gst && <p style={{ margin: 0 }}>GST : {company.gst}</p>}
-                  {company?.phone && <p style={{ margin: 0 }}>Mo: {company.phone}</p>}
-                  {company?.email && <p style={{ margin: 0 }}>Email: {company.email}</p>}
-                </div>
+            /* Classic Estimate Template - Traditional Business Look */
+            <div style={{ fontFamily: 'Times New Roman, serif', color: '#18181b', backgroundColor: '#ffffff', minHeight: '297mm', padding: '50px', border: '1px solid #e4e4e7' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #18181b', paddingBottom: '20px', marginBottom: '30px' }}>
+                {company?.logoUrl && (
+                  <img src={company.logoUrl} alt="Logo" style={{ width: '80px', height: 'auto', marginBottom: '10px' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                )}
+                <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 5px 0', textTransform: 'uppercase' }}>{company?.name}</h1>
+                <p style={{ fontSize: '12px', margin: '2px 0' }}>{company?.address}</p>
+                <p style={{ fontSize: '12px', margin: '2px 0' }}>Phone: {company?.phone} | Email: {company?.email}</p>
+                {company?.gst && <p style={{ fontSize: '12px', margin: '2px 0' }}>GSTIN: {company.gst}</p>}
               </div>
 
-              <div style={{ height: '2px', backgroundColor: '#0f172a', marginBottom: '20px' }}></div>
-
-              {/* Title and Date */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #0f172a', padding: '8px 15px', marginBottom: '15px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, textDecoration: 'underline' }}>General Estimate</h2>
-                <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Date: {estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
+              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: 'bold', textDecoration: 'underline', margin: 0, textTransform: 'uppercase' }}>General Estimate</h2>
               </div>
 
-              {/* Customer Details Table */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '12px' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '20%', backgroundColor: '#f8fafc' }}>Customer Name :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '45%' }}>{estimateToPrint?.clientName}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', width: '15%', backgroundColor: '#f8fafc' }}>Mob :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', width: '20%' }}>{estimateToPrint?.clientMob1}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Alt Mobile :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.clientMob2 || 'N/A'}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>PAN No :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.clientPan || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Site Address :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.siteAddress}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>EST No :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>{estimateToPrint?.estimateNumber}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Current Address :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.currentAddress || 'N/A'}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Date :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Property Type :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.propertyType}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Scope of Work :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.scopeOfWork}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Est. Completion :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px' }}>{estimateToPrint?.completionTime || 'N/A'}</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>Budget :</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', fontWeight: 'bold' }}>{estimateToPrint?.budget || 'N/A'}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div style={{ border: '1px solid #18181b', marginBottom: '30px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <tbody>
+                    <tr>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5', width: '20%' }}>Customer Name:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', width: '45%' }}>{estimateToPrint?.clientName}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5', width: '15%' }}>EST No:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', width: '20%', fontWeight: 'bold' }}>{estimateToPrint?.estimateNumber}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>Site Address:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.siteAddress}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>Date:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.createdAt ? format(toDate(estimateToPrint.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>Mobile:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.clientMob1}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>PAN No:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.clientPan || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>Property Type:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.propertyType}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px', fontWeight: 'bold', backgroundColor: '#f4f4f5' }}>Scope:</td>
+                      <td style={{ border: '1px solid #18181b', padding: '8px' }}>{estimateToPrint?.scopeOfWork}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-              {/* Items Table */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0', fontSize: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '5%' }}>Sr.</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '35%' }}>Item Name</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>L x W</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Area</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '8%', textAlign: 'center' }}>Unit</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '10%', textAlign: 'center' }}>Rate</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '7%', textAlign: 'center' }}>Qty.</th>
-                    <th style={{ border: '1px solid #0f172a', padding: '8px 10px', width: '15%', textAlign: 'right' }}>Total</th>
+                  <tr style={{ backgroundColor: '#f4f4f5', border: '1px solid #18181b' }}>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center', width: '50px' }}>Sr.</th>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'left' }}>Description of Work</th>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center', width: '80px' }}>Qty</th>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center', width: '80px' }}>Unit</th>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', width: '120px' }}>Rate</th>
+                    <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', width: '120px' }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {estimateToPrint?.items?.map((item, index) => (
                     <tr key={index}>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{index + 1}</td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px' }}>{item.name}</td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>
-                        {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
+                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center' }}>{index + 1}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '10px' }}>
+                        <p style={{ fontWeight: 'bold', margin: 0 }}>{item.name}</p>
+                        {item.length && item.width ? (
+                          <p style={{ fontSize: '11px', margin: '2px 0', color: '#52525b' }}>Size: {item.length} x {item.width} {item.unit}</p>
+                        ) : null}
                       </td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>
-                        {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
-                      </td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.unit}</td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.price}</td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'center' }}>{item.qty}</td>
-                      <td style={{ border: '1px solid #0f172a', padding: '8px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {item.total?.toLocaleString('en-IN')}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center' }}>{item.qty}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center' }}>{item.unit}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right' }}>{item.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                   <tr>
-                    <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>SUB TOTAL</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>₹ {estimateToPrint?.subtotal?.toLocaleString('en-IN')}</td>
+                    <td colSpan={5} style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal</td>
+                    <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{estimateToPrint?.subtotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                   </tr>
                   <tr>
-                    <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>GST (ESTIMATED)</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px 10px', textAlign: 'right', fontWeight: 'bold' }}>+ ₹ {estimateToPrint?.gstAmount?.toLocaleString('en-IN')}</td>
+                    <td colSpan={5} style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>GST (Estimated)</td>
+                    <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{estimateToPrint?.gstAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                   </tr>
-                  <tr style={{ backgroundColor: '#0f172a', color: 'white' }}>
-                    <td colSpan={7} style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' }}>GRAND TOTAL ESTIMATED</td>
-                    <td style={{ border: '1px solid #0f172a', padding: '10px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>₹ {estimateToPrint?.total?.toLocaleString('en-IN')}</td>
+                  <tr style={{ backgroundColor: '#f4f4f5' }}>
+                    <td colSpan={5} style={{ border: '1px solid #18181b', padding: '12px', textAlign: 'right', fontWeight: 'bold', fontSize: '15px' }}>Grand Total Estimated</td>
+                    <td style={{ border: '1px solid #18181b', padding: '12px', textAlign: 'right', fontWeight: 'bold', fontSize: '15px' }}>₹ {estimateToPrint?.total?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 </tbody>
               </table>
 
-              {/* Work Details & Terms */}
-              <div style={{ marginTop: '30px', border: '1px solid #0f172a' }}>
-                <div style={{ backgroundColor: '#0f172a', color: 'white', padding: '6px 15px', textAlign: 'center', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>
-                  Work Details & Terms
-                </div>
-                <div style={{ padding: '15px' }}>
-                  <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
-                    <tbody>
-                      {estimateToPrint?.terms?.map((term, index) => (
-                        <tr key={index}>
-                          <td style={{ width: '20px', fontWeight: 'bold', verticalAlign: 'top', paddingBottom: '5px' }}>{index + 1}</td>
-                          <td style={{ paddingBottom: '5px' }}>{term}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div style={{ marginBottom: '40px' }}>
+                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '10px', fontSize: '14px' }}>Terms & Conditions:</p>
+                <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                  {estimateToPrint?.terms?.map((term, index) => (
+                    <p key={index} style={{ margin: '2px 0' }}>{index + 1}. {term}</p>
+                  ))}
                 </div>
               </div>
 
-              {/* Footer / Signatory */}
-              <div style={{ position: 'absolute', bottom: '20mm', left: '20mm', right: '20mm' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                  <div style={{ fontSize: '9px', color: '#94a3b8' }}>
-                    <p style={{ margin: 0 }}>{company?.website || 'www.pixarworldconstruction.in'}</p>
-                  </div>
-                  <div style={{ textAlign: 'center', width: '200px' }}>
-                    <div style={{ borderTop: '1px solid #0f172a', marginBottom: '5px' }}></div>
-                    <p style={{ fontSize: '12px', fontWeight: 'bold', margin: 0 }}>Authorized Signatory</p>
-                  </div>
+              <div style={{ marginTop: '80px', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ textAlign: 'center', width: '200px' }}>
+                  <p style={{ fontSize: '12px', marginBottom: '40px' }}>Customer's Signature</p>
+                  <div style={{ borderTop: '1px solid #18181b' }}></div>
+                </div>
+                <div style={{ textAlign: 'center', width: '250px' }}>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>For {company?.name}</p>
+                  <div style={{ borderTop: '1px solid #18181b', marginTop: '40px' }}></div>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>Authorized Signatory</p>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>

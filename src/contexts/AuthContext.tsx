@@ -20,7 +20,7 @@ const ALL_FEATURES = [
   'calc-brick', 'calc-plaster', 'calc-paint', 'calc-gypsum', 
   'calc-electrical', 'calc-flooring', 'calc-stone', 'calc-doors', 
   'calc-windows', 'calc-frame', 'calc-kitchen', 'calc-plumbing',
-  'civil-drawing'
+  'civil-drawing', 'invoices', 'projects'
 ];
 
 interface AuthContextType {
@@ -59,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  const isSuperAdmin = staff?.role === 'super_admin' || user?.email === 'gujjupanchat0@gmail.com';
+  const isAdmin = isSuperAdmin || staff?.role === 'admin';
+
   useEffect(() => {
     if (!user) return;
 
@@ -88,6 +91,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (error) {
               console.error("Error creating super admin record:", error);
             }
+          }
+
+          // Self-healing for missing staff record if they are a company admin
+          try {
+            const companyQuery = query(
+              collection(db, 'companies'),
+              where('adminEmail', '==', user.email)
+            );
+            const companySnapshot = await getDocs(companyQuery);
+            if (!companySnapshot.empty) {
+              const companyDoc = companySnapshot.docs[0];
+              const companyData = companyDoc.data();
+              const recoveredStaff: Staff = {
+                id: user.uid,
+                uid: user.uid,
+                name: companyData.adminName || user.displayName || 'Admin',
+                email: user.email!,
+                role: 'admin',
+                companyId: companyDoc.id
+              };
+              console.log("Self-healing: Recovering staff record for admin:", user.email);
+              await setDoc(doc(db, 'staff', user.uid), recoveredStaff);
+              return; // onSnapshot will trigger again
+            }
+          } catch (error) {
+            console.error("Error self-healing staff record:", error);
           }
 
           // Check for pending record by email
@@ -162,6 +191,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (docSnapshot.exists()) {
           const companyData = { id: docSnapshot.id, ...docSnapshot.data() } as Company;
           
+          // Ensure features exist
+          if (!companyData.features || companyData.features.length === 0) {
+            companyData.features = ALL_FEATURES;
+            // Repair in DB if admin
+            if (isAdmin) {
+              try {
+                await updateDoc(doc(db, 'companies', companyData.id), { features: ALL_FEATURES });
+                console.log("Repaired company features for:", companyData.name);
+              } catch (err) {
+                console.error("Error repairing company features:", err);
+              }
+            }
+          }
+
           // Check for expiry
           const now = new Date();
           const expiry = toDate(companyData.expiryDate);
@@ -202,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
     return () => unsubscribe();
-  }, [staff?.companyId]);
+  }, [staff?.companyId, staff?.role, isAdmin]);
 
   const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -288,9 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         role,
         uid: user.uid,
-        companyId: finalCompanyId,
-        status: 'active',
-        createdAt: new Date().toISOString()
+        companyId: finalCompanyId
       });
     }
   };
@@ -312,9 +353,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   };
-
-  const isSuperAdmin = staff?.role === 'super_admin' || user?.email === 'gujjupanchat0@gmail.com';
-  const isAdmin = isSuperAdmin || staff?.role === 'admin';
 
   useEffect(() => {
     if (user) {

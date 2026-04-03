@@ -78,6 +78,7 @@ export default function SubscriptionPage({ initialView, setActiveTab }: { initia
             planName: pkg.type === 'subscription' ? pkg.name : company.planName,
             estimateLimit: (company.estimateLimit || 0) + (pkg.estimateLimit || 0),
             staffLimit: Math.max(company.staffLimit || 0, pkg.staffLimit || 0),
+            features: pkg.features || company.features || [],
             paymentMethod: 'razorpay',
             paymentReference: response.razorpay_payment_id,
             updatedAt: Timestamp.now()
