@@ -36,6 +36,10 @@ export interface Company {
   website?: string;
   estimateTemplate?: string;
   invoiceTemplate?: string;
+  estimatePrefix?: string;
+  estimateNextNumber?: number;
+  invoicePrefix?: string;
+  invoiceNextNumber?: number;
 }
 
 export interface PricingPackage {

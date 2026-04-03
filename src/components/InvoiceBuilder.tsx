@@ -195,10 +195,19 @@ export default function InvoiceBuilder() {
       };
 
       if (!isEditing) {
-        invoiceData.invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+        const prefix = company?.invoicePrefix || 'INV-';
+        const nextNum = company?.invoiceNextNumber || 1;
+        invoiceData.invoiceNumber = `${prefix}${nextNum.toString().padStart(4, '0')}`;
         invoiceData.createdAt = serverTimestamp();
         const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
         invoiceData.id = docRef.id;
+
+        // Increment invoice number in company settings
+        if (company?.id) {
+          await updateDoc(doc(db, 'companies', company.id), {
+            invoiceNextNumber: nextNum + 1
+          });
+        }
       } else {
         await updateDoc(doc(db, 'invoices', formData.id!), invoiceData);
       }
@@ -390,45 +399,42 @@ export default function InvoiceBuilder() {
 
         <div className="bg-white rounded-[40px] border border-zinc-100 shadow-xl overflow-hidden">
           <div ref={invoiceRef} className="p-12 bg-white">
-            {company?.invoiceTemplate === 'modern' ? (
-              /* Modern Invoice Template - Dark Theme */
-              <div style={{ fontFamily: 'Inter, sans-serif', color: '#ffffff', backgroundColor: '#18181b', minHeight: '297mm', padding: '40px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '60px' }}>
+            {company?.invoiceTemplate === 'modern-2' ? (
+              /* Modern Invoice Template 2 - White Theme */
+              <div style={{ fontFamily: 'Inter, sans-serif', color: '#18181b', backgroundColor: '#ffffff', minHeight: '297mm', padding: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '60px', borderBottom: '4px solid #18181b', paddingBottom: '30px' }}>
                   <div>
-                    <div style={{ width: '120px', height: '120px', backgroundColor: '#27272a', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', overflow: 'hidden', border: '1px solid #3f3f46' }}>
-                      {company?.logoUrl ? (
-                        <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
-                      ) : (
-                        <span style={{ fontSize: '48px', fontWeight: '900', color: '#ffffff' }}>{company?.name?.[0] || 'P'}</span>
-                      )}
-                    </div>
-                    <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, letterSpacing: '-0.02em', color: '#ffffff' }}>{company?.name}</h1>
-                    <p style={{ fontSize: '14px', color: '#a1a1aa', maxWidth: '300px', marginTop: '8px', lineHeight: '1.5' }}>{company?.address}</p>
+                    <h1 style={{ fontSize: '48px', fontWeight: '900', margin: 0, letterSpacing: '-0.04em', textTransform: 'uppercase' }}>Invoice</h1>
+                    <p style={{ fontSize: '16px', color: '#71717a', marginTop: '10px' }}>No: <span style={{ color: '#18181b', fontWeight: 'bold' }}>{selectedInvoice.invoiceNumber}</span></p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#10b981', fontSize: '48px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.05em', marginBottom: '10px', lineHeight: '1' }}>Invoice</div>
-                    <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
-                      <p style={{ margin: '4px 0' }}>Invoice No: <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{selectedInvoice.invoiceNumber}</span></p>
-                      <p style={{ margin: '4px 0' }}>Date: <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{selectedInvoice.createdAt ? format(toDate(selectedInvoice.createdAt), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</span></p>
-                    </div>
+                    {company?.logoUrl ? (
+                      <img src={company.logoUrl} alt="Logo" style={{ width: '100px', height: '100px', objectFit: 'contain' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                    ) : (
+                      <div style={{ width: '100px', height: '100px', backgroundColor: '#f4f4f5', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '40px', fontWeight: '900' }}>{company?.name?.[0]}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '60px' }}>
-                  <div style={{ backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
-                    <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Bill To</h4>
-                    <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{selectedInvoice.clientName}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', marginBottom: '60px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', marginBottom: '15px' }}>From</h4>
+                    <p style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 5px 0' }}>{company?.name}</p>
+                    <p style={{ fontSize: '14px', color: '#71717a', margin: 0, lineHeight: '1.5' }}>{company?.address}</p>
                   </div>
-                  <div style={{ backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
-                    <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Payment Info</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                        <span style={{ color: '#a1a1aa' }}>Status</span>
-                        <span style={{ color: selectedInvoice.status === 'paid' ? '#10b981' : '#f59e0b', fontWeight: 'bold', textTransform: 'uppercase' }}>{selectedInvoice.status}</span>
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', marginBottom: '15px' }}>Bill To</h4>
+                    <p style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 5px 0' }}>{selectedInvoice.clientName}</p>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '15px' }}>
+                      <div>
+                        <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#a1a1aa', textTransform: 'uppercase', margin: '0 0 2px 0' }}>Date</p>
+                        <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>{selectedInvoice.createdAt ? format(toDate(selectedInvoice.createdAt), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</p>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                        <span style={{ color: '#a1a1aa' }}>Due Date</span>
-                        <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{selectedInvoice.dueDate ? format(new Date(selectedInvoice.dueDate), 'dd MMM yyyy') : 'N/A'}</span>
+                      <div>
+                        <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#a1a1aa', textTransform: 'uppercase', margin: '0 0 2px 0' }}>Due Date</p>
+                        <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>{selectedInvoice.dueDate ? format(new Date(selectedInvoice.dueDate), 'dd MMM yyyy') : 'N/A'}</p>
                       </div>
                     </div>
                   </div>
@@ -436,21 +442,123 @@ export default function InvoiceBuilder() {
 
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #3f3f46' }}>
-                      <th style={{ padding: '15px 20px', textAlign: 'left', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Item Description</th>
-                      <th style={{ padding: '15px 20px', textAlign: 'center', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Qty</th>
-                      <th style={{ padding: '15px 20px', textAlign: 'right', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Price</th>
-                      <th style={{ padding: '15px 20px', textAlign: 'right', color: '#71717a', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total</th>
+                    <tr style={{ backgroundColor: '#f4f4f5' }}>
+                      <th style={{ padding: '15px 20px', textAlign: 'left', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>Description</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'center', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>Qty</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'right', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>Price</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'right', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selectedInvoice.items.map((item, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid #27272a' }}>
+                      <tr key={index} style={{ borderBottom: '1px solid #e4e4e7' }}>
                         <td style={{ padding: '20px' }}>
-                          <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>{item.name}</p>
+                          <p style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>{item.name}</p>
                         </td>
-                        <td style={{ padding: '20px', textAlign: 'center', color: '#ffffff', fontSize: '16px' }}>{item.quantity}</td>
-                        <td style={{ padding: '20px', textAlign: 'right', color: '#ffffff', fontSize: '16px' }}>₹{item.price.toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '20px', textAlign: 'center', fontSize: '16px' }}>{item.quantity}</td>
+                        <td style={{ padding: '20px', textAlign: 'right', fontSize: '16px' }}>₹{item.price.toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '20px', textAlign: 'right', fontSize: '16px', fontWeight: 'bold' }}>₹{item.total.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '60px' }}>
+                  <div style={{ width: '300px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ color: '#71717a' }}>Subtotal</span>
+                      <span style={{ fontWeight: 'bold' }}>₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    {company?.gstEnabled && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ color: '#71717a' }}>GST Total</span>
+                        <span style={{ fontWeight: 'bold' }}>₹{selectedInvoice.gstTotal.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    <div style={{ height: '2px', backgroundColor: '#18181b', margin: '15px 0' }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '18px', fontWeight: '900', textTransform: 'uppercase' }}>Total</span>
+                      <span style={{ fontSize: '24px', fontWeight: '900' }}>₹{selectedInvoice.total.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '40px', alignItems: 'flex-end' }}>
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', color: '#a1a1aa', marginBottom: '10px' }}>Notes</h4>
+                    <p style={{ fontSize: '14px', color: '#71717a', margin: 0, lineHeight: '1.6' }}>{selectedInvoice.notes || 'Thank you for your business.'}</p>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    {company?.ownerSignature && (
+                      <img src={company.ownerSignature} alt="Signature" style={{ width: '150px', height: 'auto', marginBottom: '10px' }} />
+                    )}
+                    <div style={{ borderTop: '2px solid #18181b', paddingTop: '10px' }}>
+                      <p style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>Authorized Signature</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Modern Invoice Template 1 - White Theme */
+              <div style={{ fontFamily: 'Inter, sans-serif', color: '#18181b', backgroundColor: '#ffffff', minHeight: '297mm', padding: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '60px' }}>
+                  <div>
+                    <div style={{ width: '120px', height: '120px', backgroundColor: '#f4f4f5', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', overflow: 'hidden', border: '1px solid #e4e4e7' }}>
+                      {company?.logoUrl ? (
+                        <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                      ) : (
+                        <span style={{ fontSize: '48px', fontWeight: '900', color: '#18181b' }}>{company?.name?.[0] || 'P'}</span>
+                      )}
+                    </div>
+                    <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, letterSpacing: '-0.02em', color: '#18181b' }}>{company?.name}</h1>
+                    <p style={{ fontSize: '14px', color: '#71717a', maxWidth: '300px', marginTop: '8px', lineHeight: '1.5' }}>{company?.address}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: '#10b981', fontSize: '48px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.05em', marginBottom: '10px', lineHeight: '1' }}>Invoice</div>
+                    <div style={{ fontSize: '14px', color: '#71717a' }}>
+                      <p style={{ margin: '4px 0' }}>Invoice No: <span style={{ color: '#18181b', fontWeight: 'bold' }}>{selectedInvoice.invoiceNumber}</span></p>
+                      <p style={{ margin: '4px 0' }}>Date: <span style={{ color: '#18181b', fontWeight: 'bold' }}>{selectedInvoice.createdAt ? format(toDate(selectedInvoice.createdAt), 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}</span></p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '60px' }}>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Bill To</h4>
+                    <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{selectedInvoice.clientName}</p>
+                  </div>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Payment Info</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                        <span style={{ color: '#64748b' }}>Status</span>
+                        <span style={{ color: selectedInvoice.status === 'paid' ? '#10b981' : '#f59e0b', fontWeight: 'bold', textTransform: 'uppercase' }}>{selectedInvoice.status}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                        <span style={{ color: '#64748b' }}>Due Date</span>
+                        <span style={{ color: '#1e293b', fontWeight: 'bold' }}>{selectedInvoice.dueDate ? format(new Date(selectedInvoice.dueDate), 'dd MMM yyyy') : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '15px 20px', textAlign: 'left', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Item Description</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'center', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Qty</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'right', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Price</th>
+                      <th style={{ padding: '15px 20px', textAlign: 'right', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.items.map((item, index) => (
+                      <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '20px' }}>
+                          <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{item.name}</p>
+                        </td>
+                        <td style={{ padding: '20px', textAlign: 'center', color: '#1e293b', fontSize: '16px' }}>{item.quantity}</td>
+                        <td style={{ padding: '20px', textAlign: 'right', color: '#1e293b', fontSize: '16px' }}>₹{item.price.toLocaleString('en-IN')}</td>
                         <td style={{ padding: '20px', textAlign: 'right', color: '#10b981', fontSize: '16px', fontWeight: 'bold' }}>₹{item.total.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
@@ -458,125 +566,36 @@ export default function InvoiceBuilder() {
                 </table>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ width: '350px', backgroundColor: '#27272a', padding: '30px', borderRadius: '24px', border: '1px solid #3f3f46' }}>
+                  <div style={{ width: '350px', backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '16px' }}>
-                      <span style={{ color: '#a1a1aa' }}>Subtotal</span>
-                      <span style={{ color: '#ffffff' }}>₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</span>
+                      <span style={{ color: '#64748b' }}>Subtotal</span>
+                      <span style={{ color: '#1e293b' }}>₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</span>
                     </div>
                     {company?.gstEnabled && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '16px' }}>
-                        <span style={{ color: '#a1a1aa' }}>GST Total</span>
+                        <span style={{ color: '#64748b' }}>GST Total</span>
                         <span style={{ color: '#10b981' }}>+ ₹{selectedInvoice.gstTotal.toLocaleString('en-IN')}</span>
                       </div>
                     )}
-                    <div style={{ height: '1px', backgroundColor: '#3f3f46', marginBottom: '20px' }}></div>
+                    <div style={{ height: '1px', backgroundColor: '#e2e8f0', marginBottom: '20px' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#71717a', textTransform: 'uppercase' }}>Total Amount</span>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Total Amount</span>
                       <span style={{ fontSize: '32px', fontWeight: '900', color: '#10b981' }}>₹{selectedInvoice.total.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ marginTop: '60px', borderTop: '1px solid #3f3f46', paddingTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                  <div style={{ fontSize: '12px', color: '#71717a' }}>
-                    <p style={{ margin: '4px 0', color: '#ffffff', fontWeight: 'bold' }}>Notes & Terms</p>
+                <div style={{ marginTop: '60px', borderTop: '1px solid #e2e8f0', paddingTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    <p style={{ margin: '4px 0', color: '#1e293b', fontWeight: 'bold' }}>Notes & Terms</p>
                     <p style={{ margin: 0, maxWidth: '400px', lineHeight: '1.6' }}>{selectedInvoice.notes || 'Thank you for your business. Please make payment within 15 days.'}</p>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     {company?.ownerSignature && (
-                      <img src={company.ownerSignature} alt="Signature" style={{ width: '120px', height: 'auto', marginBottom: '10px', filter: 'invert(1)' }} />
+                      <img src={company.ownerSignature} alt="Signature" style={{ width: '120px', height: 'auto', marginBottom: '10px' }} />
                     )}
-                    <div style={{ width: '180px', height: '1px', backgroundColor: '#3f3f46', marginBottom: '10px' }}></div>
-                    <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>Authorized Signatory</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Classic Invoice Template - Traditional Business Look */
-              <div style={{ fontFamily: 'Times New Roman, serif', color: '#18181b', backgroundColor: '#ffffff', minHeight: '297mm', padding: '50px', border: '1px solid #e4e4e7' }}>
-                <div style={{ textAlign: 'center', borderBottom: '2px solid #18181b', paddingBottom: '20px', marginBottom: '30px' }}>
-                  {company?.logoUrl && (
-                    <img src={company.logoUrl} alt="Logo" style={{ width: '80px', height: 'auto', marginBottom: '10px' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
-                  )}
-                  <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 5px 0', textTransform: 'uppercase' }}>{company?.name}</h1>
-                  <p style={{ fontSize: '12px', margin: '2px 0' }}>{company?.address}</p>
-                  <p style={{ fontSize: '12px', margin: '2px 0' }}>Phone: {company?.phone} | Email: {company?.email}</p>
-                  {company?.gst && <p style={{ fontSize: '12px', margin: '2px 0' }}>GSTIN: {company.gst}</p>}
-                </div>
-
-                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                  <h2 style={{ fontSize: '22px', fontWeight: 'bold', textDecoration: 'underline', margin: 0, textTransform: 'uppercase' }}>Tax Invoice</h2>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', fontSize: '13px' }}>
-                  <div style={{ width: '50%', border: '1px solid #18181b', padding: '15px' }}>
-                    <p style={{ fontWeight: 'bold', borderBottom: '1px solid #18181b', paddingBottom: '5px', marginBottom: '10px', textTransform: 'uppercase' }}>Bill To:</p>
-                    <p style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 5px 0' }}>{selectedInvoice.clientName}</p>
-                  </div>
-                  <div style={{ width: '40%', border: '1px solid #18181b', padding: '15px' }}>
-                    <p style={{ margin: '5px 0' }}><strong>Invoice No:</strong> {selectedInvoice.invoiceNumber}</p>
-                    <p style={{ margin: '5px 0' }}><strong>Date:</strong> {selectedInvoice.createdAt ? format(toDate(selectedInvoice.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</p>
-                    <p style={{ margin: '5px 0' }}><strong>Due Date:</strong> {selectedInvoice.dueDate ? format(toDate(selectedInvoice.dueDate), 'dd/MM/yyyy') : 'N/A'}</p>
-                    <p style={{ margin: '5px 0' }}><strong>Status:</strong> <span style={{ textTransform: 'uppercase' }}>{selectedInvoice.status}</span></p>
-                  </div>
-                </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f4f4f5', border: '1px solid #18181b' }}>
-                      <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center', width: '50px' }}>Sr.</th>
-                      <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'left' }}>Description of Goods / Services</th>
-                      <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center', width: '80px' }}>Qty</th>
-                      <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', width: '120px' }}>Rate</th>
-                      <th style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', width: '120px' }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedInvoice.items.map((item, index) => (
-                      <tr key={index}>
-                        <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center' }}>{index + 1}</td>
-                        <td style={{ border: '1px solid #18181b', padding: '10px' }}>
-                          <p style={{ fontWeight: 'bold', margin: 0 }}>{item.name}</p>
-                        </td>
-                        <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'center' }}>{item.quantity}</td>
-                        <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right' }}>{item.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{item.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td colSpan={4} style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal</td>
-                      <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{selectedInvoice.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                    {company?.gstEnabled && (
-                      <tr>
-                        <td colSpan={4} style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>GST Total</td>
-                        <td style={{ border: '1px solid #18181b', padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{selectedInvoice.gstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      </tr>
-                    )}
-                    <tr style={{ backgroundColor: '#f4f4f5' }}>
-                      <td colSpan={4} style={{ border: '1px solid #18181b', padding: '12px', textAlign: 'right', fontWeight: 'bold', fontSize: '15px' }}>Grand Total</td>
-                      <td style={{ border: '1px solid #18181b', padding: '12px', textAlign: 'right', fontWeight: 'bold', fontSize: '15px' }}>₹ {selectedInvoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div style={{ marginBottom: '40px', fontSize: '12px' }}>
-                  <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '5px' }}>Terms & Conditions:</p>
-                  <p style={{ margin: 0, whiteSpace: 'pre-line', lineHeight: '1.5' }}>{selectedInvoice.notes || '1. Goods once sold will not be taken back.\n2. Interest @ 18% will be charged if payment is not made within due date.\n3. Subject to local jurisdiction.'}</p>
-                </div>
-
-                <div style={{ marginTop: '80px', display: 'flex', justifyContent: 'space-between' }}>
-                  <div style={{ textAlign: 'center', width: '200px' }}>
-                    <p style={{ fontSize: '12px', marginBottom: '40px' }}>Receiver's Signature</p>
-                    <div style={{ borderTop: '1px solid #18181b' }}></div>
-                  </div>
-                  <div style={{ textAlign: 'center', width: '250px' }}>
-                    <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>For {company?.name}</p>
-                    {company?.ownerSignature && (
-                      <img src={company.ownerSignature} alt="Signature" style={{ width: '120px', height: 'auto', marginBottom: '5px' }} />
-                    )}
-                    <div style={{ borderTop: '1px solid #18181b', marginTop: company?.ownerSignature ? '0' : '40px' }}></div>
-                    <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>Authorized Signatory</p>
+                    <div style={{ width: '180px', height: '1px', backgroundColor: '#e2e8f0', marginBottom: '10px' }}></div>
+                    <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>Authorized Signatory</p>
                   </div>
                 </div>
               </div>

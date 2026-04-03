@@ -25,8 +25,12 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     logoUrl: '',
     ownerSignature: '',
     gstEnabled: true,
-    estimateTemplate: 'classic',
-    invoiceTemplate: 'classic',
+    estimateTemplate: 'modern-1',
+    invoiceTemplate: 'modern-1',
+    estimatePrefix: 'EST-',
+    estimateNextNumber: 1,
+    invoicePrefix: 'INV-',
+    invoiceNextNumber: 1,
   });
   const [staff, setStaff] = useState<Staff[]>([]);
   const [newStaffEmail, setNewStaffEmail] = useState('');
@@ -121,8 +125,12 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
         ownerSignature: company.ownerSignature || '',
         themeColor: company.themeColor || '#10b981',
         staffLimit: company.staffLimit || 5,
-        estimateTemplate: company.estimateTemplate || 'classic',
-        invoiceTemplate: company.invoiceTemplate || 'classic',
+        estimateTemplate: company.estimateTemplate || 'modern-1',
+        invoiceTemplate: company.invoiceTemplate || 'modern-1',
+        estimatePrefix: company.estimatePrefix || 'EST-',
+        estimateNextNumber: company.estimateNextNumber || 1,
+        invoicePrefix: company.invoicePrefix || 'INV-',
+        invoiceNextNumber: company.invoiceNextNumber || 1,
       });
     }
   }, [company]);
@@ -640,11 +648,11 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Estimate Template</label>
                     <select
                       value={settings.estimateTemplate}
-                      onChange={e => setSettings(prev => ({ ...prev, estimateTemplate: e.target.value as 'classic' | 'modern' }))}
+                      onChange={e => setSettings(prev => ({ ...prev, estimateTemplate: e.target.value }))}
                       className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
                     >
-                      <option value="classic">Classic Template</option>
-                      <option value="modern">Modern Template</option>
+                      <option value="modern-1">Modern Template 1 (White)</option>
+                      <option value="modern-2">Modern Template 2 (White)</option>
                     </select>
                   </div>
 
@@ -652,12 +660,52 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Invoice Template</label>
                     <select
                       value={settings.invoiceTemplate}
-                      onChange={e => setSettings(prev => ({ ...prev, invoiceTemplate: e.target.value as 'classic' | 'modern' }))}
+                      onChange={e => setSettings(prev => ({ ...prev, invoiceTemplate: e.target.value }))}
                       className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
                     >
-                      <option value="classic">Classic Template</option>
-                      <option value="modern">Modern Template</option>
+                      <option value="modern-1">Modern Template 1 (White)</option>
+                      <option value="modern-2">Modern Template 2 (White)</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Estimate Numbering</label>
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={settings.estimatePrefix}
+                        onChange={e => setSettings(prev => ({ ...prev, estimatePrefix: e.target.value }))}
+                        className="w-1/2 px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                        placeholder="Prefix (e.g. EST-)"
+                      />
+                      <input
+                        type="number"
+                        value={settings.estimateNextNumber}
+                        onChange={e => setSettings(prev => ({ ...prev, estimateNextNumber: parseInt(e.target.value) || 1 }))}
+                        className="w-1/2 px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                        placeholder="Next Number"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Invoice Numbering</label>
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={settings.invoicePrefix}
+                        onChange={e => setSettings(prev => ({ ...prev, invoicePrefix: e.target.value }))}
+                        className="w-1/2 px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                        placeholder="Prefix (e.g. INV-)"
+                      />
+                      <input
+                        type="number"
+                        value={settings.invoiceNextNumber}
+                        onChange={e => setSettings(prev => ({ ...prev, invoiceNextNumber: parseInt(e.target.value) || 1 }))}
+                        className="w-1/2 px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                        placeholder="Next Number"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-3">
