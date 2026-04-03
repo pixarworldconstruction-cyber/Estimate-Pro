@@ -7,6 +7,7 @@ import { getDatabase } from "firebase/database";
 export const firebaseConfig = {
   apiKey: "AIzaSyDiMAG5zyFT1gkyay_0FYyjGkiy6Se2FnE",
   authDomain: "construction-estimate-pro.firebaseapp.com",
+  databaseURL: "https://construction-estimate-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "construction-estimate-pro",
   storageBucket: "construction-estimate-pro.firebasestorage.app",
   messagingSenderId: "562877463121",

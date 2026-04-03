@@ -24,6 +24,8 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     logoUrl: '',
     ownerSignature: '',
     gstEnabled: true,
+    estimateTemplate: 'classic',
+    invoiceTemplate: 'classic',
   });
   const [staff, setStaff] = useState<Staff[]>([]);
   const [newStaffEmail, setNewStaffEmail] = useState('');
@@ -132,6 +134,8 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
         ownerSignature: company.ownerSignature || '',
         themeColor: company.themeColor || '#10b981',
         staffLimit: company.staffLimit || 5,
+        estimateTemplate: company.estimateTemplate || 'classic',
+        invoiceTemplate: company.invoiceTemplate || 'classic',
       });
     }
   }, [company]);
@@ -194,15 +198,6 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     });
   };
 
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentStaff?.companyId) return;
@@ -214,21 +209,43 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     }
 
     setUploading(true);
-    setSuccessMessage('Processing logo...');
+    setSuccessMessage('Compressing logo...');
     setErrorMessage(null);
+
+    if (!navigator.onLine) {
+      setErrorMessage('You are offline. Please connect to the internet to upload files.');
+      setUploading(false);
+      return;
+    }
 
     try {
       const compressedFile = await compressImage(file, 800, 800);
-      const base64 = await blobToBase64(compressedFile as Blob);
+      setSuccessMessage('Uploading logo...');
+      const storageRef = ref(storage, `companies/${currentStaff.companyId}/logo`);
       
-      setSettings(prev => ({ ...prev, logoUrl: base64 }));
-      await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: base64 });
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
       
-      setSuccessMessage('Logo updated successfully!');
-      setUploading(false);
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setSuccessMessage(`Uploading logo: ${Math.round(progress)}%`);
+        }, 
+        (error) => {
+          console.error('Upload failed', error);
+          setErrorMessage('Logo upload failed: ' + error.message);
+          setUploading(false);
+        }, 
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setSettings(prev => ({ ...prev, logoUrl: url }));
+          await updateDoc(doc(db, 'companies', currentStaff.companyId), { logoUrl: url });
+          setSuccessMessage('Logo uploaded successfully!');
+          setUploading(false);
+        }
+      );
     } catch (error: any) {
-      console.error('Update failed', error);
-      setErrorMessage('Logo update failed: ' + error.message);
+      console.error('Compression failed', error);
+      setErrorMessage('Logo compression failed: ' + error.message);
       setUploading(false);
     }
   };
@@ -238,19 +255,33 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
     if (!file || !currentStaff?.companyId) return;
 
     setUploading(true);
-    setSuccessMessage('Processing signature...');
+    setSuccessMessage('Compressing signature...');
     try {
       const compressedFile = await compressImage(file, 400, 200);
-      const base64 = await blobToBase64(compressedFile as Blob);
+      setSuccessMessage('Uploading signature...');
+      const storageRef = ref(storage, `companies/${currentStaff.companyId}/signature`);
       
-      setSettings(prev => ({ ...prev, ownerSignature: base64 }));
-      await updateDoc(doc(db, 'companies', currentStaff.companyId), { ownerSignature: base64 });
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
       
-      setSuccessMessage('Signature updated successfully!');
-      setUploading(false);
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setSuccessMessage(`Uploading signature: ${Math.round(progress)}%`);
+        }, 
+        (error) => {
+          setErrorMessage('Signature upload failed: ' + error.message);
+          setUploading(false);
+        }, 
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setSettings(prev => ({ ...prev, ownerSignature: url }));
+          await updateDoc(doc(db, 'companies', currentStaff.companyId), { ownerSignature: url });
+          setSuccessMessage('Signature uploaded successfully!');
+          setUploading(false);
+        }
+      );
     } catch (error: any) {
-      console.error('Update failed', error);
-      setErrorMessage('Signature update failed: ' + error.message);
+      setErrorMessage('Signature compression failed: ' + error.message);
       setUploading(false);
     }
   };
@@ -614,6 +645,30 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                       className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
                       placeholder="Tax Deduction Account Number"
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Estimate Template</label>
+                    <select
+                      value={settings.estimateTemplate}
+                      onChange={e => setSettings(prev => ({ ...prev, estimateTemplate: e.target.value as 'classic' | 'modern' }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    >
+                      <option value="classic">Classic Template</option>
+                      <option value="modern">Modern Template</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 ml-4">Invoice Template</label>
+                    <select
+                      value={settings.invoiceTemplate}
+                      onChange={e => setSettings(prev => ({ ...prev, invoiceTemplate: e.target.value as 'classic' | 'modern' }))}
+                      className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-3xl font-bold text-zinc-900 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    >
+                      <option value="classic">Classic Template</option>
+                      <option value="modern">Modern Template</option>
+                    </select>
                   </div>
 
                   <div className="space-y-3">

@@ -390,140 +390,258 @@ export default function InvoiceBuilder() {
 
         <div className="bg-white rounded-[40px] border border-zinc-100 shadow-xl overflow-hidden">
           <div ref={invoiceRef} className="p-12 bg-white">
-            {/* Invoice Header */}
-            <div className="flex justify-between items-start mb-12">
-              <div>
-                {company?.logoUrl ? (
-                  <img src={company.logoUrl} alt="Logo" className="h-16 mb-6 object-contain" referrerPolicy="no-referrer" crossOrigin="anonymous" />
-                ) : (
-                  <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-6">
-                    {company?.name?.[0]}
+            {company?.invoiceTemplate === 'modern' ? (
+              /* Modern Invoice Template */
+              <div style={{ fontFamily: 'Inter, sans-serif', color: '#18181b' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '60px' }}>
+                  <div>
+                    <div style={{ width: '80px', height: '80px', backgroundColor: '#f4f4f5', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', overflow: 'hidden' }}>
+                      {company?.logoUrl ? (
+                        <img src={company.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                      ) : (
+                        <span style={{ fontSize: '32px', fontWeight: '900', color: '#18181b' }}>{company?.name?.[0]}</span>
+                      )}
+                    </div>
+                    <h1 style={{ fontSize: '32px', fontWeight: '900', letterSpacing: '-0.04em', margin: 0, textTransform: 'uppercase' }}>Invoice</h1>
+                    <p style={{ fontSize: '14px', color: '#71717a', fontWeight: 'bold', marginTop: '5px' }}>#{selectedInvoice.invoiceNumber}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: '900', margin: 0 }}>{company?.name}</h2>
+                    <div style={{ fontSize: '12px', color: '#71717a', marginTop: '10px', lineHeight: '1.6' }}>
+                      <p style={{ margin: 0 }}>{company?.address}</p>
+                      <p style={{ margin: 0 }}>{company?.email}</p>
+                      <p style={{ margin: 0 }}>{company?.phone}</p>
+                      {company?.gst && <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', color: '#18181b' }}>GST: {company.gst}</p>}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', marginBottom: '60px' }}>
+                  <div>
+                    <p style={{ fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '15px' }}>Billed To</p>
+                    <h4 style={{ fontSize: '18px', fontWeight: '900', margin: 0 }}>{selectedInvoice.clientName}</h4>
+                    <div style={{ fontSize: '13px', color: '#71717a', marginTop: '8px', lineHeight: '1.5' }}>
+                      {clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress && (
+                        <p style={{ margin: 0 }}>{clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress}</p>
+                      )}
+                      <p style={{ margin: 0 }}>{clients.find(c => c.id === selectedInvoice.clientId)?.phone}</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <p style={{ fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Date Issued</p>
+                      <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>{format(toDate(selectedInvoice.createdAt), 'MMM dd, yyyy')}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Due Date</p>
+                      <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>{format(toDate(selectedInvoice.dueDate), 'MMM dd, yyyy')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #18181b' }}>
+                      <th style={{ padding: '15px 0', textAlign: 'left', fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Description</th>
+                      <th style={{ padding: '15px 0', textAlign: 'center', fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Qty</th>
+                      <th style={{ padding: '15px 0', textAlign: 'right', fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Rate</th>
+                      <th style={{ padding: '15px 0', textAlign: 'right', fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.items.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f4f4f5' }}>
+                        <td style={{ padding: '25px 0' }}>
+                          <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>{item.name}</p>
+                          {item.length && item.width ? (
+                            <p style={{ fontSize: '11px', color: '#a1a1aa', marginTop: '4px' }}>Size: {item.length} x {item.width} {item.unit}</p>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: '25px 0', textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }}>{item.quantity}</td>
+                        <td style={{ padding: '25px 0', textAlign: 'right', fontSize: '14px', fontWeight: 'bold' }}>₹{item.price.toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '25px 0', textAlign: 'right', fontSize: '14px', fontWeight: '900' }}>₹{item.total.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '60px' }}>
+                  <div style={{ width: '320px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                      <span style={{ fontSize: '14px', color: '#71717a', fontWeight: 'bold' }}>Subtotal</span>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold' }}>₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}>
+                      <span style={{ fontSize: '14px', color: '#71717a', fontWeight: 'bold' }}>GST Total</span>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>+ ₹{selectedInvoice.gstTotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style={{ backgroundColor: '#18181b', color: 'white', padding: '25px', borderRadius: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Amount</span>
+                      <span style={{ fontSize: '24px', fontWeight: '900' }}>₹{selectedInvoice.total.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedInvoice.notes && (
+                  <div style={{ marginBottom: '60px' }}>
+                    <p style={{ fontSize: '10px', fontWeight: '900', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Notes & Terms</p>
+                    <p style={{ fontSize: '12px', color: '#71717a', lineHeight: '1.6', margin: 0 }}>{selectedInvoice.notes}</p>
                   </div>
                 )}
-                <h2 className="text-4xl font-black text-zinc-900 tracking-tighter uppercase">Invoice</h2>
-                <p className="text-zinc-500 font-bold mt-1">#{selectedInvoice.invoiceNumber}</p>
-              </div>
-              <div className="text-right">
-                <h3 className="text-xl font-black text-zinc-900 uppercase tracking-tight mb-2">{company?.name}</h3>
-                <div className="text-zinc-500 text-sm font-medium space-y-1">
-                  <p>{company?.address}</p>
-                  <p>{company?.email}</p>
-                  <p>{company?.phone}</p>
-                  <div className="flex flex-col items-end gap-1 mt-2">
-                    {company?.cin && <p className="font-bold text-zinc-900">CIN: {company.cin}</p>}
-                    {company?.gst && <p className="font-bold text-zinc-900">GST: {company.gst}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Billing Info */}
-            <div className="grid grid-cols-2 gap-12 mb-12 py-12 border-y border-zinc-100">
-              <div>
-                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-4">Bill To</p>
-                <h4 className="text-xl font-black text-zinc-900 uppercase tracking-tight mb-2">{selectedInvoice.clientName}</h4>
-                <div className="text-zinc-500 text-sm font-medium space-y-1">
-                  {clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress && (
-                    <p>{clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress}</p>
-                  )}
-                  <p>{clients.find(c => c.id === selectedInvoice.clientId)?.phone}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="space-y-4">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '40px', borderTop: '1px solid #f4f4f5' }}>
                   <div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Date Issued</p>
-                    <p className="font-bold text-zinc-900">{format(toDate(selectedInvoice.createdAt), 'MMMM d, yyyy')}</p>
+                    <p style={{ fontSize: '12px', fontWeight: '900', color: '#18181b', margin: 0 }}>Thank you!</p>
+                    <p style={{ fontSize: '11px', color: '#a1a1aa', marginTop: '4px' }}>{company?.website}</p>
                   </div>
+                  <div style={{ textAlign: 'center' }}>
+                    {company?.ownerSignature && (
+                      <img src={company.ownerSignature} alt="Signature" style={{ height: '50px', marginBottom: '10px', objectFit: 'contain' }} referrerPolicy="no-referrer" />
+                    )}
+                    <div style={{ width: '180px', height: '2px', backgroundColor: '#18181b', marginBottom: '8px' }}></div>
+                    <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Authorized Signatory</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Classic Invoice Template */
+              <>
+                {/* Invoice Header */}
+                <div className="flex justify-between items-start mb-12">
                   <div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Due Date</p>
-                    <p className="font-bold text-zinc-900">{format(toDate(selectedInvoice.dueDate), 'MMMM d, yyyy')}</p>
+                    {company?.logoUrl ? (
+                      <img src={company.logoUrl} alt="Logo" className="h-16 mb-6 object-contain" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                    ) : (
+                      <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-6">
+                        {company?.name?.[0]}
+                      </div>
+                    )}
+                    <h2 className="text-4xl font-black text-zinc-900 tracking-tighter uppercase">Invoice</h2>
+                    <p className="text-zinc-500 font-bold mt-1">#{selectedInvoice.invoiceNumber}</p>
+                  </div>
+                  <div className="text-right">
+                    <h3 className="text-xl font-black text-zinc-900 uppercase tracking-tight mb-2">{company?.name}</h3>
+                    <div className="text-zinc-500 text-sm font-medium space-y-1">
+                      <p>{company?.address}</p>
+                      <p>{company?.email}</p>
+                      <p>{company?.phone}</p>
+                      <div className="flex flex-col items-end gap-1 mt-2">
+                        {company?.cin && <p className="font-bold text-zinc-900">CIN: {company.cin}</p>}
+                        {company?.gst && <p className="font-bold text-zinc-900">GST: {company.gst}</p>}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Items Table */}
-            <table className="w-full mb-12 border-collapse">
-              <thead>
-                <tr className="border-b-2 border-zinc-900 bg-zinc-50">
-                  <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Sr.</th>
-                  <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Item Name</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">L x W</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Area</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Unit</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">GST%</th>
-                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Rate</th>
-                  <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Qty</th>
-                  <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedInvoice.items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{idx + 1}</td>
-                    <td className="p-3 text-xs font-bold text-zinc-900 border border-zinc-900">{item.name}</td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
-                      {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
-                    </td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
-                      {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
-                    </td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900 uppercase">{item.unit}</td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.gstSlab}%</td>
-                    <td className="p-3 text-right text-xs font-bold text-zinc-900 border border-zinc-900">{formatCurrency(item.price)}</td>
-                    <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.quantity}</td>
-                    <td className="p-3 text-right text-xs font-black text-zinc-900 border border-zinc-900">{formatCurrency(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                {/* Billing Info */}
+                <div className="grid grid-cols-2 gap-12 mb-12 py-12 border-y border-zinc-100">
+                  <div>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-4">Bill To</p>
+                    <h4 className="text-xl font-black text-zinc-900 uppercase tracking-tight mb-2">{selectedInvoice.clientName}</h4>
+                    <div className="text-zinc-500 text-sm font-medium space-y-1">
+                      {clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress && (
+                        <p>{clients.find(c => c.id === selectedInvoice.clientId)?.siteAddress}</p>
+                      )}
+                      <p>{clients.find(c => c.id === selectedInvoice.clientId)?.phone}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Date Issued</p>
+                        <p className="font-bold text-zinc-900">{format(toDate(selectedInvoice.createdAt), 'MMMM d, yyyy')}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Due Date</p>
+                        <p className="font-bold text-zinc-900">{format(toDate(selectedInvoice.dueDate), 'MMMM d, yyyy')}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-            {/* Totals */}
-            <div className="flex justify-end">
-              <div className="w-80 space-y-4">
-                <div className="flex justify-between text-zinc-500 font-bold">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(selectedInvoice.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-zinc-500 font-bold">
-                  <span>GST Total</span>
-                  <span>{formatCurrency(selectedInvoice.gstTotal)}</span>
-                </div>
-                <div className="flex justify-between items-center pt-4 border-t-2 border-zinc-900">
-                  <span className="text-xl font-black text-zinc-900 uppercase">Total</span>
-                  <span className="text-3xl font-black text-primary tracking-tighter">{formatCurrency(selectedInvoice.total)}</span>
-                </div>
-              </div>
-            </div>
+                {/* Items Table */}
+                <table className="w-full mb-12 border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-zinc-900 bg-zinc-50">
+                      <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Sr.</th>
+                      <th className="p-3 text-left text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Item Name</th>
+                      <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">L x W</th>
+                      <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Area</th>
+                      <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Unit</th>
+                      <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">GST%</th>
+                      <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Rate</th>
+                      <th className="p-3 text-center text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Qty</th>
+                      <th className="p-3 text-right text-[10px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-900">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.items.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{idx + 1}</td>
+                        <td className="p-3 text-xs font-bold text-zinc-900 border border-zinc-900">{item.name}</td>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
+                          {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
+                        </td>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">
+                          {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
+                        </td>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900 uppercase">{item.unit}</td>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.gstSlab}%</td>
+                        <td className="p-3 text-right text-xs font-bold text-zinc-900 border border-zinc-900">{formatCurrency(item.price)}</td>
+                        <td className="p-3 text-center text-xs font-bold text-zinc-900 border border-zinc-900">{item.quantity}</td>
+                        <td className="p-3 text-right text-xs font-black text-zinc-900 border border-zinc-900">{formatCurrency(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-            {selectedInvoice.notes && (
-              <div className="mt-12 pt-12 border-t border-zinc-100">
-                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-4">Notes</p>
-                <p className="text-zinc-600 text-sm leading-relaxed font-medium">{selectedInvoice.notes}</p>
-              </div>
+                {/* Totals */}
+                <div className="flex justify-end">
+                  <div className="w-80 space-y-4">
+                    <div className="flex justify-between text-zinc-500 font-bold">
+                      <span>Subtotal</span>
+                      <span>{formatCurrency(selectedInvoice.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-500 font-bold">
+                      <span>GST Total</span>
+                      <span>{formatCurrency(selectedInvoice.gstTotal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-4 border-t-2 border-zinc-900">
+                      <span className="text-xl font-black text-zinc-900 uppercase">Total</span>
+                      <span className="text-3xl font-black text-primary tracking-tighter">{formatCurrency(selectedInvoice.total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedInvoice.notes && (
+                  <div className="mt-12 pt-12 border-t border-zinc-100">
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-4">Notes</p>
+                    <p className="text-zinc-600 text-sm leading-relaxed font-medium">{selectedInvoice.notes}</p>
+                  </div>
+                )}
+
+                <div className="mt-24 flex justify-between items-end">
+                  <div className="space-y-4">
+                    <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
+                      Thank you for your business!
+                    </div>
+                    {company?.website && (
+                      <div className="text-primary text-xs font-bold">
+                        {company.website}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    {company?.ownerSignature && (
+                      <img src={company.ownerSignature} alt="Signature" className="h-16 mb-2 mx-auto object-contain" referrerPolicy="no-referrer" />
+                    )}
+                    <div className="w-48 border-t-2 border-zinc-900 pt-2">
+                      <p className="text-xs font-black text-zinc-900 uppercase tracking-tight">Authorized Signatory</p>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
-
-            <div className="mt-24 flex justify-between items-end">
-              <div className="space-y-4">
-                <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
-                  Thank you for your business!
-                </div>
-                {company?.website && (
-                  <div className="text-primary text-xs font-bold">
-                    {company.website}
-                  </div>
-                )}
-              </div>
-              <div className="text-center">
-                {company?.ownerSignature && (
-                  <img src={company.ownerSignature} alt="Signature" className="h-16 mb-2 mx-auto object-contain" referrerPolicy="no-referrer" />
-                )}
-                <div className="w-48 border-t-2 border-zinc-900 pt-2">
-                  <p className="text-xs font-black text-zinc-900 uppercase tracking-tight">Authorized Signatory</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

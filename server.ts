@@ -11,6 +11,37 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+  
+  // Razorpay order creation
+  app.post("/api/create-razorpay-order", async (req, res) => {
+    const { amount, currency = "INR", receipt } = req.body;
+    const Razorpay = (await import("razorpay")).default;
+    
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!key_id || !key_secret) {
+      console.error("Razorpay keys not set");
+      return res.status(500).json({ success: false, message: "Razorpay configuration error" });
+    }
+
+    const razorpay = new Razorpay({
+      key_id,
+      key_secret,
+    });
+
+    try {
+      const order = await razorpay.orders.create({
+        amount: amount * 100, // amount in smallest currency unit (paise for INR)
+        currency,
+        receipt,
+      });
+      res.json(order);
+    } catch (error) {
+      console.error("Razorpay order creation error:", error);
+      res.status(500).json({ success: false, message: "Order creation failed" });
+    }
+  });
 
   // API routes
   app.post("/api/verify-recaptcha", async (req, res) => {

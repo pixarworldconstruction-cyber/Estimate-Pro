@@ -78,7 +78,10 @@ export default function SuperAdminPanel() {
     upiId: '',
     upiName: '',
     qrCodeUrl: '',
-    instructions: ''
+    instructions: '',
+    razorpayKeyId: '',
+    razorpayKeySecret: '',
+    enabledMethods: ['razorpay']
   });
   const [savingContent, setSavingContent] = useState(false);
   const [uploadingQR, setUploadingQR] = useState(false);
@@ -1735,29 +1738,29 @@ export default function SuperAdminPanel() {
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
             <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
               <Smartphone className="text-primary" />
-              UPI Payment Settings
+              Razorpay Payment Settings
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">UPI ID</label>
+                  <label className="text-sm font-semibold text-zinc-700">Razorpay Key ID</label>
                   <input
                     type="text"
-                    value={paymentSettings.upiId}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
+                    value={paymentSettings.razorpayKeyId}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeyId: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    placeholder="e.g. yourname@upi"
+                    placeholder="rzp_live_..."
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">Payee Name</label>
+                  <label className="text-sm font-semibold text-zinc-700">Razorpay Key Secret</label>
                   <input
-                    type="text"
-                    value={paymentSettings.upiName}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, upiName: e.target.value })}
+                    type="password"
+                    value={paymentSettings.razorpayKeySecret}
+                    onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeySecret: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    placeholder="e.g. Your Company Name"
+                    placeholder="Enter Secret Key"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1766,16 +1769,7 @@ export default function SuperAdminPanel() {
                     value={paymentSettings.instructions}
                     onChange={e => setPaymentSettings({ ...paymentSettings, instructions: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
-                    placeholder="e.g. Please share the screenshot of payment on WhatsApp after successful transaction."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">Bank Details (for Card/Bank Payments)</label>
-                  <textarea
-                    value={paymentSettings.bankDetails || ''}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, bankDetails: e.target.value })}
-                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
-                    placeholder="Enter Bank Name, A/c No, IFSC, etc."
+                    placeholder="e.g. Your subscription will be activated instantly after successful payment."
                   />
                 </div>
                 <button
@@ -1788,46 +1782,16 @@ export default function SuperAdminPanel() {
                 </button>
               </div>
 
-              <div className="space-y-6">
-                <label className="text-sm font-semibold text-zinc-700 block">UPI QR Code</label>
-                <div className="relative group">
-                  <div className="aspect-square bg-zinc-50 rounded-3xl border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center overflow-hidden">
-                    {paymentSettings.qrCodeUrl ? (
-                      <img 
-                        src={paymentSettings.qrCodeUrl} 
-                        alt="UPI QR Code" 
-                        className="w-full h-full object-contain p-4"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="text-center p-6">
-                        <ImageIcon className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
-                        <p className="text-sm text-zinc-400">No QR Code Uploaded</p>
-                      </div>
-                    )}
-                    
-                    {uploadingQR && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <label className="absolute inset-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 flex items-center justify-center rounded-3xl">
-                    <div className="text-white text-center">
-                      <Upload className="w-8 h-8 mx-auto mb-2" />
-                      <span className="font-bold">Upload QR Code</span>
-                    </div>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*"
-                      onChange={handleQRUpload}
-                      disabled={uploadingQR}
-                    />
-                  </label>
+              <div className="space-y-6 bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
+                <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5 text-amber-500" />
+                  Important Note
+                </h3>
+                <div className="space-y-4 text-sm text-zinc-600">
+                  <p>1. Make sure to use the <strong>Live Mode</strong> keys from your Razorpay Dashboard for production.</p>
+                  <p>2. Ensure that you have enabled <strong>Webhooks</strong> in Razorpay if you want to handle asynchronous payment events (optional for this setup).</p>
+                  <p>3. The <strong>VITE_RAZORPAY_KEY_ID</strong> in your environment variables should match the Key ID provided here for the frontend to work correctly.</p>
                 </div>
-                <p className="text-xs text-zinc-400 text-center italic">Upload your UPI QR code (GPay, PhonePe, etc.) for customers to scan and pay.</p>
               </div>
             </div>
           </div>

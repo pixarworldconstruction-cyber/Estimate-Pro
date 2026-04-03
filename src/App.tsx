@@ -43,7 +43,7 @@ function AppContent() {
   useEffect(() => {
     if (isSuperAdmin) {
       setActiveTab('super-admin');
-    } else if (company?.showWelcome && !staff) {
+    } else if (company?.showWelcome && isAdmin) {
       setActiveTab('subscription');
     }
   }, [isSuperAdmin, company?.showWelcome, staff]);

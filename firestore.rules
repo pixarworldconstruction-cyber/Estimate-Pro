@@ -7,8 +7,13 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Function to check if the user is a super admin
     function isSuperAdmin() {
-      return isAuthenticated() && request.auth.token.email == "gujjupanchat0@gmail.com";
+      return isAuthenticated() && (
+        request.auth.token.email == "gujjupanchat0@gmail.com" ||
+        (exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'super_admin')
+      );
     }
 
     function isStaff() {
@@ -29,10 +34,20 @@ service cloud.firestore {
       allow write: if isSuperAdmin() || (isStaff() && getStaffData().companyId == companyId && getStaffData().role == 'admin');
     }
 
+    // Settings Private (Super Admin only)
+    match /settings_private/{settingId} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // Staff
     match /staff/{staffId} {
       // Basic self-access and super admin access
       allow read: if isAuthenticated() && (request.auth.uid == staffId || isSuperAdmin());
+      
+      // Allow reading pending records by email (for AuthContext linking)
+      allow read: if isAuthenticated() && 
+                  request.auth.token.email == resource.data.email && 
+                  resource.data.uid == '';
       
       // Colleagues can read each other
       allow read: if isStaff() && resource != null && getStaffData().companyId == resource.data.companyId;
@@ -70,6 +85,30 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
     }
 
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Daily Reports
+    match /dailyReports/{reportId} {
+      allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
+      allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
     // Reminders
     match /reminders/{reminderId} {
       allow read: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
@@ -84,6 +123,26 @@ service cloud.firestore {
       allow create: if isSuperAdmin() || (isStaff() && getStaffData().companyId == request.resource.data.companyId);
       allow update: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId);
       allow delete: if isSuperAdmin() || (isStaff() && getStaffData().companyId == resource.data.companyId && getStaffData().role == 'admin');
+    }
+
+    // Packages
+    match /packages/{packageId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Bills
+    match /bills/{billId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && isAdmin() && getStaffData().companyId == resource.data.companyId);
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
   }
 }

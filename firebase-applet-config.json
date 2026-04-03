@@ -1,8 +1,10 @@
 {
+  "projectId": "construction-estimate-pro",
+  "appId": "1:562877463121:web:f773846fd7efb40d8b1670",
   "apiKey": "AIzaSyDiMAG5zyFT1gkyay_0FYyjGkiy6Se2FnE",
   "authDomain": "construction-estimate-pro.firebaseapp.com",
-  "projectId": "construction-estimate-pro",
+  "firestoreDatabaseId": "ai-studio-b5de9d2c-44bf-4a91-8c00-18d98d915155",
   "storageBucket": "construction-estimate-pro.firebasestorage.app",
   "messagingSenderId": "562877463121",
-  "appId": "1:562877463121:web:a41331d93897a9de8b1670"
+  "measurementId": ""
 }

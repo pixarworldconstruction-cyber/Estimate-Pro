@@ -8,19 +8,11 @@ import { cn, toDate } from '../lib/utils';
 import { toast } from 'sonner';
 
 export default function SubscriptionPage({ initialView }: { initialView?: 'plans' | 'addons' }) {
-  const { company, isSuperAdmin } = useAuth();
+  const { company, isSuperAdmin, logout } = useAuth();
   const [packages, setPackages] = useState<PricingPackage[]>([]);
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState<PricingPackage | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'plans' | 'payment' | 'details' | 'success'>('plans');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'upi' | null>(null);
-  const [paymentDetails, setPaymentDetails] = useState({
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
-    upiId: ''
-  });
+  const [paymentStep, setPaymentStep] = useState<'plans' | 'success'>('plans');
 
   useEffect(() => {
     const unsubPackages = onSnapshot(collection(db, 'packages'), (snapshot) => {
@@ -38,65 +30,100 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
       setLoading(false);
     });
 
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'payment'), (doc) => {
-      if (doc.exists()) {
-        setPaymentSettings(doc.data() as PaymentSettings);
-      }
-    });
-
-    // Clear welcome flag if it's true
-    if (company?.showWelcome) {
-      updateDoc(doc(db, 'companies', company.id), { showWelcome: false });
-    }
-
     return () => {
       unsubPackages();
-      unsubSettings();
     };
-  }, [company?.showWelcome, company?.id]);
+  }, [initialView]);
 
-  const handleSubscribe = async (pkg: PricingPackage) => {
-    setSelectedPackage(pkg);
-    // Clear previous payment details
-    setPaymentDetails({
-      cardNumber: '',
-      expiry: '',
-      cvv: '',
-      upiId: ''
-    });
-    // Skip selection step and go straight to UPI payment
-    setPaymentMethod('upi');
-    setPaymentStep('details');
+  const handleSkip = async () => {
+    if (!company) return;
+    try {
+      await updateDoc(doc(db, 'companies', company.id), { showWelcome: false });
+      window.location.href = '/';
+    } catch (err) {
+      console.error("Error skipping welcome:", err);
+    }
   };
 
-  const processPayment = async () => {
-    if (!company || !selectedPackage || !paymentMethod) return;
+  const handleSubscribe = async (pkg: PricingPackage) => {
+    if (!company) return;
+    setSelectedPackage(pkg);
     
     setLoading(true);
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // 1. Create order on server
+      const response = await fetch('/api/create-razorpay-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: pkg.price,
+          currency: 'INR',
+          receipt: `receipt_${Date.now()}`
+        })
+      });
 
+      if (!response.ok) throw new Error('Failed to create payment order');
+      const order = await response.json();
+
+      // 2. Initialize Razorpay
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: company.name,
+        description: `Subscription for ${pkg.name}`,
+        order_id: order.id,
+        handler: async function (response: any) {
+          // Payment successful
+          await finalizeSubscription(pkg, response.razorpay_payment_id);
+        },
+        prefill: {
+          name: company.adminName || '',
+          email: company.adminEmail || '',
+          contact: company.phone || ''
+        },
+        theme: {
+          color: "#10b981"
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        toast.error('Payment failed: ' + response.error.description);
+      });
+      rzp.open();
+    } catch (err: any) {
+      toast.error('Payment initialization failed: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finalizeSubscription = async (pkg: PricingPackage, paymentId: string) => {
+    if (!company) return;
+    
+    setLoading(true);
+    try {
       const expiryDate = new Date();
-      if (selectedPackage.period === 'monthly') {
+      if (pkg.period === 'monthly') {
         expiryDate.setMonth(expiryDate.getMonth() + 1);
-      } else if (selectedPackage.period === 'yearly') {
+      } else if (pkg.period === 'yearly') {
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-      } else if (selectedPackage.period === 'one-time') {
-        // For addons, we just add to the limit, don't change expiry
+      } else if (pkg.period === 'one-time') {
         expiryDate.setTime(toDate(company.expiryDate).getTime());
       }
 
       const updates: any = {
-        planName: selectedPackage.type === 'subscription' ? selectedPackage.name : company.planName,
-        estimateLimit: (company.estimateLimit || 0) + (selectedPackage.estimateLimit || 0),
-        staffLimit: Math.max(company.staffLimit || 0, selectedPackage.staffLimit || 0),
-        paymentMethod: paymentMethod,
-        paymentReference: paymentMethod === 'upi' ? paymentDetails.upiId : 'CARD_PAYMENT',
-        updatedAt: Timestamp.now()
+        planName: pkg.type === 'subscription' ? pkg.name : company.planName,
+        estimateLimit: (company.estimateLimit || 0) + (pkg.estimateLimit || 0),
+        staffLimit: Math.max(company.staffLimit || 0, pkg.staffLimit || 0),
+        paymentMethod: 'razorpay',
+        paymentReference: paymentId,
+        updatedAt: Timestamp.now(),
+        showWelcome: false // Clear welcome flag on payment
       };
 
-      if (selectedPackage.type === 'subscription') {
+      if (pkg.type === 'subscription') {
         updates.status = 'active';
         updates.subscriptionStatus = 'active';
         updates.expiryDate = Timestamp.fromDate(expiryDate);
@@ -106,15 +133,15 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
       await updateDoc(doc(db, 'companies', company.id), updates);
 
       setPaymentStep('success');
-      toast.success('Payment processed successfully!');
+      toast.success('Subscription updated successfully!');
     } catch (err: any) {
-      toast.error('Payment failed: ' + err.message);
+      toast.error('Failed to update subscription: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && paymentStep !== 'details') return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+  if (loading && paymentStep !== 'success') return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
 
   if (paymentStep === 'success') {
     return (
@@ -145,170 +172,95 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-4">
-      <div className="text-center space-y-4">
+      <div className="text-center space-y-4 relative">
+        {company?.showWelcome && (
+          <div className="absolute top-0 right-0 flex gap-2">
+            <button
+              onClick={handleSkip}
+              className="px-6 py-2 bg-zinc-100 text-zinc-600 rounded-xl font-bold hover:bg-zinc-200 transition-all text-sm"
+            >
+              Skip for now
+            </button>
+            <button
+              onClick={() => logout()}
+              className="px-6 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-all text-sm"
+            >
+              Logout
+            </button>
+          </div>
+        )}
         <h1 className="text-4xl font-black text-zinc-900 tracking-tight">
-          {paymentStep === 'plans' 
-            ? (initialView === 'addons' ? 'Available Addons' : 'Choose Your Plan') 
-            : 'Complete Payment'}
+          {initialView === 'addons' ? 'Available Addons' : 'Choose Your Plan'}
         </h1>
         <p className="text-zinc-500 text-lg max-w-2xl mx-auto">
-          {paymentStep === 'plans' 
-            ? (initialView === 'addons' 
-                ? 'Enhance your plan with extra estimates and features.' 
-                : 'Select a package that fits your business needs. All plans include core features.')
-            : `You are subscribing to the ${selectedPackage?.name}. Select your payment method.`}
+          {initialView === 'addons' 
+            ? 'Enhance your plan with extra estimates and features.' 
+            : 'Select a package that fits your business needs. All plans include core features.'}
         </p>
       </div>
 
-      {paymentStep === 'plans' ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {packages.map((pkg) => (
-            <div 
-              key={pkg.id} 
-              className={cn(
-                "bg-white p-8 rounded-3xl border-2 transition-all relative flex flex-col",
-                pkg.popular ? "border-primary shadow-2xl shadow-primary/10 scale-105 z-10" : "border-zinc-100 hover:border-zinc-200"
-              )}
-            >
-              {pkg.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest">
-                  Most Popular
-                </div>
-              )}
-              
-              <div className="mb-8">
-                <h3 className="text-xl font-bold text-zinc-900 mb-2">{pkg.name}</h3>
-                <div className="flex items-baseline gap-2">
-                  {pkg.originalPrice && (
-                    <span className="text-lg text-zinc-400 line-through">₹{pkg.originalPrice}</span>
-                  )}
-                  <span className="text-4xl font-black text-primary">₹{pkg.price}</span>
-                  <span className="text-zinc-500 font-medium">/{pkg.period === 'monthly' ? 'mo' : 'yr'}</span>
-                </div>
-              </div>
-
-              <div className="space-y-4 mb-8 flex-1">
-                <div className="flex items-center gap-3 text-zinc-700 font-medium">
-                  <Check className="text-green-500 w-5 h-5 shrink-0" />
-                  <span>{pkg.estimateLimit} Estimates</span>
-                </div>
-                <div className="flex items-center gap-3 text-zinc-700 font-medium">
-                  <Check className="text-green-500 w-5 h-5 shrink-0" />
-                  <span>{pkg.staffLimit} Staff Members</span>
-                </div>
-                {pkg.features.map((feature, idx) => (
-                  <div key={idx} className="flex items-center gap-3 text-zinc-600">
-                    <Check className="text-green-500 w-5 h-5 shrink-0" />
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => handleSubscribe(pkg)}
-                className={cn(
-                  "w-full py-4 rounded-2xl font-bold transition-all shadow-lg",
-                  pkg.popular 
-                    ? "bg-primary text-white shadow-primary/20 hover:bg-primary/90" 
-                    : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
-                )}
-              >
-                {initialView === 'addons' ? 'Buy Now' : 'Get Started'}
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="max-w-md mx-auto bg-white p-10 rounded-[48px] border border-zinc-100 shadow-2xl space-y-8 relative overflow-hidden">
-          {loading && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-4">
-              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-              <p className="font-bold text-zinc-900">Processing Payment...</p>
-              <p className="text-sm text-zinc-500">Please do not refresh the page</p>
-            </div>
-          )}
-
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">QR Payment</h3>
-            <div className="inline-block px-4 py-1 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest">
-              UPI Transfer
-            </div>
-          </div>
-
-          <div className="bg-zinc-50 p-8 rounded-[32px] text-center space-y-2 border border-zinc-100">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Payment Amount</p>
-            <div className="text-5xl font-black text-primary tracking-tighter">₹{selectedPackage?.price}</div>
-            <p className="text-sm font-bold text-zinc-500">{selectedPackage?.name}</p>
-          </div>
-
-          <div className="space-y-6">
-            {paymentSettings?.qrCodeUrl && (
-              <div className="flex flex-col items-center justify-center p-8 bg-white rounded-[40px] border-2 border-zinc-100 shadow-inner">
-                <img 
-                  src={paymentSettings.qrCodeUrl} 
-                  alt="UPI QR Code" 
-                  className="w-64 h-64 object-contain rounded-2xl shadow-xl mb-6"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <Smartphone className="w-4 h-4" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Scan with any UPI App</p>
-                </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {packages.map((pkg) => (
+          <div 
+            key={pkg.id} 
+            className={cn(
+              "bg-white p-8 rounded-3xl border-2 transition-all relative flex flex-col",
+              pkg.popular ? "border-primary shadow-2xl shadow-primary/10 scale-105 z-10" : "border-zinc-100 hover:border-zinc-200"
+            )}
+          >
+            {pkg.popular && (
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest">
+                Most Popular
               </div>
             )}
             
-            <div className="space-y-4">
-              <div className="p-6 bg-zinc-900 rounded-[32px] text-white space-y-3 shadow-xl">
-                <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                  <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">UPI ID</span>
-                  <span className="font-bold text-primary font-mono">{paymentSettings?.upiId || 'Not Configured'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Payee Name</span>
-                  <span className="font-bold text-white">{paymentSettings?.upiName || 'Not Configured'}</span>
-                </div>
-              </div>
-
-              {paymentSettings?.instructions && (
-                <div className="p-6 bg-amber-50 rounded-[32px] border border-amber-100">
-                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Important Instructions</p>
-                  <p className="text-xs text-amber-900 leading-relaxed font-medium">{paymentSettings.instructions}</p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-4">Transaction ID / UTR Number</label>
-                <input 
-                  type="text" 
-                  placeholder="Enter 12-digit UTR number"
-                  className="w-full px-8 py-5 bg-zinc-50 border border-zinc-100 rounded-[24px] outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono font-bold text-zinc-900"
-                  value={paymentDetails.upiId}
-                  onChange={e => setPaymentDetails({...paymentDetails, upiId: e.target.value})}
-                />
-                <p className="text-[10px] text-zinc-400 italic text-center">Enter the transaction ID after successful payment for verification.</p>
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-zinc-900 mb-2">{pkg.name}</h3>
+              <div className="flex items-baseline gap-2">
+                {pkg.originalPrice && (
+                  <span className="text-lg text-zinc-400 line-through">₹{pkg.originalPrice}</span>
+                )}
+                <span className="text-4xl font-black text-primary">₹{pkg.price}</span>
+                <span className="text-zinc-500 font-medium">/{pkg.period === 'monthly' ? 'mo' : 'yr'}</span>
               </div>
             </div>
+
+            <div className="space-y-4 mb-8 flex-1">
+              <div className="flex items-center gap-3 text-zinc-700 font-medium">
+                <Check className="text-green-500 w-5 h-5 shrink-0" />
+                <span>{pkg.estimateLimit} Estimates</span>
+              </div>
+              <div className="flex items-center gap-3 text-zinc-700 font-medium">
+                <Check className="text-green-500 w-5 h-5 shrink-0" />
+                <span>{pkg.staffLimit} Staff Members</span>
+              </div>
+              {pkg.features.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-3 text-zinc-600">
+                  <Check className="text-green-500 w-5 h-5 shrink-0" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => handleSubscribe(pkg)}
+              disabled={loading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2",
+                pkg.popular 
+                  ? "bg-primary text-white shadow-primary/20 hover:bg-primary/90" 
+                  : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
+              )}
+            >
+              <CreditCard className="w-5 h-5" />
+              {loading ? 'Processing...' : (initialView === 'addons' ? 'Buy Now' : 'Get Started')}
+            </button>
           </div>
-
-          <button
-            onClick={processPayment}
-            disabled={!paymentDetails.upiId || loading}
-            className="w-full py-6 bg-primary text-white rounded-[32px] text-xl font-black uppercase tracking-widest shadow-2xl shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
-          >
-            Confirm Payment
-          </button>
-
-          <button
-            onClick={() => setPaymentStep('plans')}
-            className="w-full text-zinc-400 font-bold py-2 hover:text-zinc-900 transition-all text-sm uppercase tracking-widest"
-          >
-            Cancel and Go Back
-          </button>
-        </div>
-      )}
+        ))}
+      </div>
 
       {/* Addons Section */}
-      {paymentStep === 'plans' && initialView !== 'addons' && packages.some(p => p.type === 'addon') && (
+      {initialView !== 'addons' && packages.some(p => p.type === 'addon') && (
         <div className="mt-16 space-y-6">
           <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
             <Zap className="text-amber-500" />
@@ -324,9 +276,11 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
                 </div>
                 <button
                   onClick={() => handleSubscribe(pkg)}
-                  className="w-full py-2 rounded-xl border-2 border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all"
+                  disabled={loading}
+                  className="w-full py-2 rounded-xl border-2 border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-2"
                 >
-                  Buy Now
+                  <CreditCard className="w-4 h-4" />
+                  {loading ? '...' : 'Buy Now'}
                 </button>
               </div>
             ))}
