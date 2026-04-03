@@ -17,12 +17,34 @@ async function startServer() {
     const { amount, currency = "INR", receipt } = req.body;
     const Razorpay = (await import("razorpay")).default;
     
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+    let key_id = process.env.RAZORPAY_KEY_ID;
+    let key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    // If keys are not in process.env, try to fetch from Firestore
+    if (!key_id || !key_secret) {
+      try {
+        const admin = (await import("firebase-admin")).default;
+        if (admin.apps.length === 0) {
+          const config = (await import("./firebase-applet-config.json", { assert: { type: "json" } })).default;
+          admin.initializeApp({
+            projectId: config.projectId,
+          });
+        }
+        const db = admin.firestore();
+        const paymentDoc = await db.collection("settings").doc("payment").get();
+        if (paymentDoc.exists) {
+          const data = paymentDoc.data();
+          key_id = key_id || data?.razorpayKeyId;
+          key_secret = key_secret || data?.razorpayKeySecret;
+        }
+      } catch (err) {
+        console.error("Error fetching Razorpay keys from Firestore:", err);
+      }
+    }
 
     if (!key_id || !key_secret) {
       console.error("Razorpay keys not set");
-      return res.status(500).json({ success: false, message: "Razorpay configuration error" });
+      return res.status(500).json({ success: false, message: "Razorpay configuration error: Keys not found in environment or database" });
     }
 
     const razorpay = new Razorpay({

@@ -62,7 +62,10 @@ export default function SubscriptionPage({ initialView }: { initialView?: 'plans
         })
       });
 
-      if (!response.ok) throw new Error('Failed to create payment order');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to create payment order');
+      }
       const order = await response.json();
 
       // 2. Initialize Razorpay
