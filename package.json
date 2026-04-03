@@ -13,7 +13,6 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@types/react-google-recaptcha": "^2.1.9",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -29,7 +28,6 @@
     "razorpay": "^2.9.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-google-recaptcha": "^3.1.0",
     "react-konva": "^19.2.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.0",

@@ -34,8 +34,8 @@ export interface Company {
   gstEnabled?: boolean;
   usedEstimates?: number;
   website?: string;
-  estimateTemplate?: 'classic' | 'modern';
-  invoiceTemplate?: 'classic' | 'modern';
+  estimateTemplate?: string;
+  invoiceTemplate?: string;
 }
 
 export interface PricingPackage {
@@ -53,14 +53,8 @@ export interface PricingPackage {
 }
 
 export interface PaymentSettings {
-  upiId: string;
-  upiName: string;
-  qrCodeUrl?: string;
-  bankDetails?: string;
-  instructions?: string;
-  razorpayKeyId?: string;
-  razorpayKeySecret?: string;
-  enabledMethods: ('razorpay' | 'upi')[];
+  razorpayKeyId: string;
+  razorpayKeySecret: string;
 }
 
 export interface Staff {

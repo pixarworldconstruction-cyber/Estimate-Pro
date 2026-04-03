@@ -1,8 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, Construction, UserPlus, Mail, Lock, User } from 'lucide-react';
 import { motion } from 'motion/react';
-import ReCAPTCHA from 'react-google-recaptcha';
 
 export default function Login() {
   const { signIn, signUp, resetPassword } = useAuth();
@@ -14,44 +13,21 @@ export default function Login() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMessage('');
 
-    if (isSignUp && !recaptchaToken) {
-      setError('Please complete the reCAPTCHA.');
-      return;
-    }
-
     setLoading(true);
     try {
       if (isSignUp) {
-        // Verify reCAPTCHA on the server
-        const verifyResponse = await fetch('/api/verify-recaptcha', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: recaptchaToken }),
-        });
-        const verifyData = await verifyResponse.json();
-
-        if (!verifyData.success) {
-          throw new Error('reCAPTCHA verification failed. Please try again.');
-        }
-
         await signUp(email, password, name, '', referralCode);
       } else {
         await signIn(email, password);
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
-      if (isSignUp) {
-        recaptchaRef.current?.reset();
-        setRecaptchaToken(null);
-      }
     } finally {
       setLoading(false);
     }
@@ -175,16 +151,6 @@ export default function Login() {
               >
                 Forgot Password?
               </button>
-            </div>
-          )}
-
-          {isSignUp && (
-            <div className="flex justify-center py-2">
-              <ReCAPTCHA
-                ref={recaptchaRef}
-                sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''}
-                onChange={(token) => setRecaptchaToken(token)}
-              />
             </div>
           )}
 

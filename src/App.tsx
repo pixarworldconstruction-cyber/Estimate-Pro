@@ -46,7 +46,7 @@ function AppContent() {
     } else if (company?.showWelcome && isAdmin) {
       setActiveTab('subscription');
     }
-  }, [isSuperAdmin, company?.showWelcome, staff]);
+  }, [isSuperAdmin, company?.showWelcome, isAdmin]);
 
   if (loading) {
     return (
@@ -124,9 +124,9 @@ function AppContent() {
       case 'admin':
         return <AdminPanel setActiveTab={setActiveTab} />;
       case 'subscription':
-        return (isAdmin && !isSuperAdmin) || !staff ? <SubscriptionPage /> : <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
+        return (isAdmin && !isSuperAdmin) || !staff ? <SubscriptionPage setActiveTab={setActiveTab} /> : <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'addons':
-        return (isAdmin && !isSuperAdmin) || !staff ? <SubscriptionPage initialView="addons" /> : <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
+        return (isAdmin && !isSuperAdmin) || !staff ? <SubscriptionPage initialView="addons" setActiveTab={setActiveTab} /> : <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'profile':
         return <Profile />;
       case 'contact-support':

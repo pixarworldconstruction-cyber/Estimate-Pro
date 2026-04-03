@@ -207,15 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
   const signUp = async (email: string, pass: string, name: string, companyId: string = '', referredByCode: string = '') => {
-    // Check if this email has already used a trial
-    if (!companyId) {
-      const qTrial = query(collection(db, 'companies'), where('adminEmail', '==', email));
-      const trialSnapshot = await getDocs(qTrial);
-      if (!trialSnapshot.empty) {
-        throw new Error('Trial period already used for this email ID. Please choose a paid plan.');
-      }
-    }
-
     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
     
     // Check if there's already a pending record for this email
@@ -241,6 +232,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // If no companyId provided, create a new company (Trial)
       if (!companyId) {
+        // Check if this email has already used a trial
+        const trialQuery = query(
+          collection(db, 'companies'), 
+          where('adminEmail', '==', email)
+        );
+        const trialSnapshot = await getDocs(trialQuery);
+        
+        if (!trialSnapshot.empty) {
+          throw new Error('This email has already been used for a trial or account. Please log in or use a different email.');
+        }
+
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + 14); // 14 days trial
 
@@ -274,9 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           adminName: name,
           referralCode: generateReferralCode(),
           referredBy: referredByCode.toUpperCase(),
-          referralCount: 0,
-          estimateTemplate: 'classic',
-          invoiceTemplate: 'classic'
+          referralCount: 0
         });
         finalCompanyId = companyDoc.id;
         role = 'admin';

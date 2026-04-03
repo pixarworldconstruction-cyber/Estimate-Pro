@@ -13,9 +13,7 @@
         "tan": { "type": "string" },
         "themeColor": { "type": "string" },
         "staffLimit": { "type": "number" },
-        "ownerSignature": { "type": "string" },
-        "estimateTemplateId": { "type": "string", "enum": ["template1", "template2"] },
-        "invoiceTemplateId": { "type": "string", "enum": ["template1", "template2"] }
+        "ownerSignature": { "type": "string" }
       },
       "required": ["name"]
     },
@@ -99,31 +97,50 @@
       },
       "required": ["clientId", "type", "timestamp"]
     },
-    "bill": {
-      "title": "Bill",
-      "description": "Purchase records for subscriptions and addons.",
+    "paymentSettings": {
+      "title": "Payment Settings",
+      "description": "Configuration for payment methods including Razorpay and UPI.",
       "type": "object",
       "properties": {
-        "companyId": { "type": "string" },
-        "companyName": { "type": "string" },
-        "packageId": { "type": "string" },
-        "packageName": { "type": "string" },
-        "amount": { "type": "number" },
-        "status": { "type": "string", "enum": ["pending", "paid", "cancelled"] },
-        "type": { "type": "string", "enum": ["subscription", "addon"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "upiId": { "type": "string" },
+        "upiName": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "bankDetails": { "type": "string" },
+        "instructions": { "type": "string" },
+        "razorpayKeyId": { "type": "string" },
+        "razorpayKeySecret": { "type": "string" },
+        "enabledMethods": { "type": "array", "items": { "type": "string", "enum": ["razorpay", "upi"] } }
       },
-      "required": ["companyId", "packageId", "amount", "status", "createdAt"]
+      "required": ["enabledMethods"]
+    },
+    "pricingPackage": {
+      "title": "Pricing Package",
+      "description": "Subscription plans and add-ons available for purchase.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "period": { "type": "string", "enum": ["monthly", "yearly", "one-time"] },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "popular": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["subscription", "addon"] },
+        "estimateLimit": { "type": "number" },
+        "staffLimit": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "price", "period", "type"]
     }
   },
   "firestore": {
     "settings/company": { "schema": "companySettings", "description": "Global company settings" },
+    "settings/payment": { "schema": "paymentSettings", "description": "Payment gateway configuration" },
+    "packages": { "schema": "pricingPackage", "description": "Available subscription packages" },
     "staff": { "schema": "staff", "description": "Staff members" },
     "clients": { "schema": "client", "description": "Client directory" },
     "items": { "schema": "item", "description": "Item catalog" },
     "estimates": { "schema": "estimate", "description": "Project estimates" },
     "reminders": { "schema": "reminder", "description": "Client follow-ups" },
-    "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" },
-    "bills": { "schema": "bill", "description": "Billing records" }
+    "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" }
   }
 }

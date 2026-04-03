@@ -1,24 +1,25 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from "firebase/database";
 
-export const firebaseConfig = {
-  apiKey: "AIzaSyDiMAG5zyFT1gkyay_0FYyjGkiy6Se2FnE",
-  authDomain: "construction-estimate-pro.firebaseapp.com",
-  databaseURL: "https://construction-estimate-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "construction-estimate-pro",
-  storageBucket: "construction-estimate-pro.firebasestorage.app",
-  messagingSenderId: "562877463121",
-  appId: "1:562877463121:web:a41331d93897a9de8b1670"
-};
+// Import the Firebase configuration
+import firebaseConfigImport from '../firebase-applet-config.json';
+export const firebaseConfig = firebaseConfigImport;
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
+
+// Use the named database if provided in the config
+export const db = (firebaseConfig as any).firestoreDatabaseId 
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    }, (firebaseConfig as any).firestoreDatabaseId)
+  : initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+
 export const storage = getStorage(app);
 export const rtdb = getDatabase(app);
 

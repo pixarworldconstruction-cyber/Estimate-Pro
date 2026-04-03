@@ -58,26 +58,25 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     };
   }, []);
 
-  const navItems = isSuperAdmin 
-    ? [{ id: 'super-admin', label: 'Super Admin', icon: ShieldCheck }]
-    : [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        ...(company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients')) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
-        ...(company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates')) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
-        ...(company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices')) ? [{ id: 'invoices', label: 'Invoices', icon: Receipt }] : []),
-        ...(company?.features?.includes('projects') && (isAdmin || staff?.permissions?.includes('projects')) ? [{ id: 'projects', label: 'Projects', icon: Briefcase }] : []),
-        ...(company?.features?.includes('items') && (isAdmin || staff?.permissions?.includes('items')) ? [{ id: 'items', label: 'Items', icon: Package }] : []),
-        ...(company?.features?.includes('reminders') && (isAdmin || staff?.permissions?.includes('reminders')) ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),
-        ...(company?.features?.includes('insights') && (isAdmin || staff?.permissions?.includes('insights')) ? [{ id: 'insights', label: 'Business Insights', icon: TrendingUp }] : []),
-        ...(company?.features?.includes('sketch') && (isAdmin || staff?.permissions?.includes('sketch')) ? [{ id: 'sketch', label: 'Sketch Pad', icon: PenTool }] : []),
-        ...(company?.features?.includes('converter') && (isAdmin || staff?.permissions?.includes('converter')) ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
-        ...(company?.features?.includes('calculator') && (isAdmin || staff?.permissions?.includes('calculator')) ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
-        ...(company?.features?.includes('construction-calc') && (isAdmin || staff?.permissions?.includes('construction-calc')) ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
-        { id: 'civil-drawing', label: 'Civil Drawing', icon: PenTool },
-        ...(isAdmin ? [{ id: 'admin', label: 'Company Identity', icon: Settings }] : []),
-        { id: 'profile', label: 'My Profile', icon: User },
-        { id: 'contact-support', label: 'Contact Us', icon: Mail },
-      ];
+  const navItems = [
+    ...(isSuperAdmin ? [{ id: 'super-admin', label: 'Super Admin', icon: ShieldCheck }] : []),
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ...(isSuperAdmin || (company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients'))) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates'))) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices'))) ? [{ id: 'invoices', label: 'Invoices', icon: Receipt }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('projects') && (isAdmin || staff?.permissions?.includes('projects'))) ? [{ id: 'projects', label: 'Projects', icon: Briefcase }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('items') && (isAdmin || staff?.permissions?.includes('items'))) ? [{ id: 'items', label: 'Items', icon: Package }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('reminders') && (isAdmin || staff?.permissions?.includes('reminders'))) ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('insights') && (isAdmin || staff?.permissions?.includes('insights'))) ? [{ id: 'insights', label: 'Business Insights', icon: TrendingUp }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('sketch') && (isAdmin || staff?.permissions?.includes('sketch'))) ? [{ id: 'sketch', label: 'Sketch Pad', icon: PenTool }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('converter') && (isAdmin || staff?.permissions?.includes('converter'))) ? [{ id: 'converter', label: 'Unit Conversion', icon: Ruler }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('calculator') && (isAdmin || staff?.permissions?.includes('calculator'))) ? [{ id: 'calculator', label: 'Calculator', icon: CalcIcon }] : []),
+    ...(isSuperAdmin || (company?.features?.includes('construction-calc') && (isAdmin || staff?.permissions?.includes('construction-calc'))) ? [{ id: 'construction-calc', label: 'Engineering Toolset', icon: HardHat }] : []),
+    { id: 'civil-drawing', label: 'Civil Drawing', icon: PenTool },
+    ...(isAdmin ? [{ id: 'admin', label: 'Company Identity', icon: Settings }] : []),
+    { id: 'profile', label: 'My Profile', icon: User },
+    { id: 'contact-support', label: 'Contact Us', icon: Mail },
+  ];
 
   const handleNavClick = (id: string) => {
     if (id === 'civil-drawing') {

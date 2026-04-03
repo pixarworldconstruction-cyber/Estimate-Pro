@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, quer
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info } from 'lucide-react';
 import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings } from '../types';
 import { format } from 'date-fns';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -75,13 +75,8 @@ export default function SuperAdminPanel() {
   const [landingContent, setLandingContent] = useState<LandingPageContent>(DEFAULT_LANDING_CONTENT);
   const [supportContent, setSupportContent] = useState<SupportContent>(DEFAULT_SUPPORT_CONTENT);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
-    upiId: '',
-    upiName: '',
-    qrCodeUrl: '',
-    instructions: '',
     razorpayKeyId: '',
-    razorpayKeySecret: '',
-    enabledMethods: ['razorpay']
+    razorpayKeySecret: ''
   });
   const [savingContent, setSavingContent] = useState(false);
   const [uploadingQR, setUploadingQR] = useState(false);
@@ -134,7 +129,7 @@ export default function SuperAdminPanel() {
         estimateLimit: 50,
         staffLimit: 5
       });
-      alert('Package added successfully!');
+      toast.success('Package added successfully!');
     } catch (err: any) {
       setError("Failed to add package: " + err.message);
     } finally {
@@ -166,7 +161,7 @@ export default function SuperAdminPanel() {
     setSavingContent(true);
     try {
       await setDoc(doc(db, 'settings', 'landingPage'), landingContent);
-      alert('Landing page content saved successfully!');
+      toast.success('Landing page content saved successfully!');
     } catch (err: any) {
       setError("Failed to save landing content: " + err.message);
     } finally {
@@ -178,7 +173,7 @@ export default function SuperAdminPanel() {
     setSavingContent(true);
     try {
       await setDoc(doc(db, 'settings', 'support'), supportContent);
-      alert('Support content saved successfully!');
+      toast.success('Support content saved successfully!');
     } catch (err: any) {
       setError("Failed to save support content: " + err.message);
     } finally {
@@ -190,43 +185,11 @@ export default function SuperAdminPanel() {
     setSavingContent(true);
     try {
       await setDoc(doc(db, 'settings', 'payment'), paymentSettings);
-      alert('Payment settings saved successfully!');
+      toast.success('Razorpay settings saved successfully!');
     } catch (err: any) {
       setError("Failed to save payment settings: " + err.message);
     } finally {
       setSavingContent(false);
-    }
-  };
-
-  const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type and size
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Only .jpg, .png and .webp files are allowed.');
-      return;
-    }
-    if (file.size > 500 * 1024) {
-      toast.error('File size must be less than 500KB.');
-      return;
-    }
-
-    setUploadingQR(true);
-    try {
-      const storageRef = ref(storage, 'settings/payment/qr_code');
-      // Use uploadBytes for faster upload of small files
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setPaymentSettings(prev => ({ ...prev, qrCodeUrl: url }));
-      toast.success('QR Code uploaded successfully!');
-    } catch (err: any) {
-      console.error('QR Upload failed', err);
-      setError("Failed to upload QR code: " + err.message);
-      toast.error('QR Upload failed: ' + err.message);
-    } finally {
-      setUploadingQR(false);
     }
   };
 
@@ -258,7 +221,7 @@ export default function SuperAdminPanel() {
           referralCount: 0
         });
       }
-      alert(`Generated referral codes for ${companiesWithoutCode.length} companies.`);
+      toast.success(`Generated referral codes for ${companiesWithoutCode.length} companies.`);
     } catch (err: any) {
       setError("Failed to generate referral codes: " + err.message);
     } finally {
@@ -597,7 +560,7 @@ export default function SuperAdminPanel() {
         </div>
       )}
 
-      {activeView === 'companies' ? (
+      {activeView === 'companies' && (
         <>
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
             <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
@@ -958,7 +921,9 @@ export default function SuperAdminPanel() {
             </div>
           </div>
         </>
-      ) : (
+      )}
+
+      {activeView === 'content' && (
         <div className="space-y-8">
           {/* Landing Page Content Editor */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100 space-y-8">
@@ -1737,62 +1702,52 @@ export default function SuperAdminPanel() {
         <div className="space-y-8">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
             <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
-              <Smartphone className="text-primary" />
-              Razorpay Payment Settings
+              <CreditCard className="text-primary" />
+              Razorpay Settings
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">Razorpay Key ID</label>
-                  <input
-                    type="text"
-                    value={paymentSettings.razorpayKeyId}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeyId: e.target.value })}
-                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    placeholder="rzp_live_..."
-                  />
+            <div className="max-w-2xl space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Razorpay Key ID</label>
+                <input
+                  type="text"
+                  value={paymentSettings.razorpayKeyId}
+                  onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeyId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="rzp_live_..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Razorpay Key Secret</label>
+                <input
+                  type="password"
+                  value={paymentSettings.razorpayKeySecret}
+                  onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeySecret: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="••••••••••••••••"
+                />
+              </div>
+              
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
+                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-700">
+                  <p className="font-bold mb-1">How to get these keys?</p>
+                  <ol className="list-decimal ml-4 space-y-1">
+                    <li>Log in to your Razorpay Dashboard.</li>
+                    <li>Go to Settings &gt; API Keys.</li>
+                    <li>Generate Live Keys and copy them here.</li>
+                  </ol>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">Razorpay Key Secret</label>
-                  <input
-                    type="password"
-                    value={paymentSettings.razorpayKeySecret}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, razorpayKeySecret: e.target.value })}
-                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    placeholder="Enter Secret Key"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-zinc-700">Payment Instructions</label>
-                  <textarea
-                    value={paymentSettings.instructions}
-                    onChange={e => setPaymentSettings({ ...paymentSettings, instructions: e.target.value })}
-                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
-                    placeholder="e.g. Your subscription will be activated instantly after successful payment."
-                  />
-                </div>
-                <button
-                  onClick={handleSavePaymentSettings}
-                  disabled={savingContent}
-                  className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  {savingContent ? 'Saving...' : 'Save Payment Settings'}
-                </button>
               </div>
 
-              <div className="space-y-6 bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
-                <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-amber-500" />
-                  Important Note
-                </h3>
-                <div className="space-y-4 text-sm text-zinc-600">
-                  <p>1. Make sure to use the <strong>Live Mode</strong> keys from your Razorpay Dashboard for production.</p>
-                  <p>2. Ensure that you have enabled <strong>Webhooks</strong> in Razorpay if you want to handle asynchronous payment events (optional for this setup).</p>
-                  <p>3. The <strong>VITE_RAZORPAY_KEY_ID</strong> in your environment variables should match the Key ID provided here for the frontend to work correctly.</p>
-                </div>
-              </div>
+              <button
+                onClick={handleSavePaymentSettings}
+                disabled={savingContent}
+                className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {savingContent ? 'Saving...' : 'Save Razorpay Settings'}
+              </button>
             </div>
           </div>
         </div>

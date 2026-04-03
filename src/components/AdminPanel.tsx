@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap, TrendingUp, PenTool, Ruler, Calculator as CalcIcon, HardHat, Lock, Smartphone } from 'lucide-react';
 import { Staff, Company } from '../types';
 import { cn, toDate } from '../lib/utils';
+import { ALL_FEATURES as features } from '../constants/features';
 
 export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   const { user, company, isAdmin, isSuperAdmin, staff: currentStaff } = useAuth();
@@ -50,20 +51,6 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
   const [changingPassword, setChangingPassword] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { changePassword, logout } = useAuth();
-
-  const features = [
-    { id: 'estimates', name: 'Estimates', icon: FileText },
-    { id: 'invoices', name: 'Invoices', icon: FileText },
-    { id: 'projects', name: 'Projects', icon: HardHat },
-    { id: 'clients', name: 'Clients', icon: Users },
-    { id: 'items', name: 'Items', icon: Package },
-    { id: 'reminders', name: 'Reminders', icon: Bell },
-    { id: 'insights', name: 'Business Insights', icon: TrendingUp },
-    { id: 'sketch', name: 'Sketch Pad', icon: PenTool },
-    { id: 'converter', name: 'Unit Conversion', icon: Ruler },
-    { id: 'calculator', name: 'Calculator', icon: CalcIcon },
-    { id: 'construction-calc', name: 'Engineering Toolset', icon: HardHat },
-  ];
 
   const positions = [
     'Accountant', 'Manager', 'Marketing Executive', 'Sales Executive', 
@@ -141,18 +128,20 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
   }, [company]);
 
   useEffect(() => {
-    if (!currentStaff?.companyId) return;
-    const q = query(collection(db, 'staff'), where('companyId', '==', currentStaff.companyId));
+    const targetCompanyId = company?.id;
+    if (!targetCompanyId) return;
+    const q = query(collection(db, 'staff'), where('companyId', '==', targetCompanyId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setStaff(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff)));
     });
     return () => unsubscribe();
-  }, [currentStaff?.companyId]);
+  }, [company?.id]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentStaff?.companyId) return;
-    await setDoc(doc(db, 'companies', currentStaff.companyId), settings, { merge: true });
+    const targetCompanyId = company?.id;
+    if (!targetCompanyId) return;
+    await setDoc(doc(db, 'companies', targetCompanyId), settings, { merge: true });
     setSuccessMessage('Settings saved successfully!');
   };
 
@@ -968,7 +957,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   return (
                     <div key={f.id} className="flex items-center gap-1 px-2 py-1 bg-white rounded-lg border border-zinc-200 text-[9px] font-bold uppercase tracking-wider text-zinc-500">
                       <f.icon className="w-3 h-3" />
-                      {f.name}
+                      {f.label}
                     </div>
                   );
                 })}
@@ -1076,7 +1065,7 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
                   >
                     <div className="flex items-center gap-3">
                       <feature.icon className={cn("w-4 h-4", staffPermissions.includes(feature.id) ? "text-primary" : "text-zinc-400")} />
-                      <span className="text-sm font-bold text-zinc-700">{feature.name}</span>
+                      <span className="text-sm font-bold text-zinc-700">{feature.label}</span>
                     </div>
                     <input 
                       type="checkbox"
