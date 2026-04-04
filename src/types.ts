@@ -13,6 +13,8 @@ export interface Company {
   themeColor?: string;
   staffLimit?: number;
   estimateLimit?: number; // Max number of estimates allowed
+  invoiceLimit?: number; // Max number of invoices allowed
+  projectLimit?: number; // Max number of projects allowed
   editTimeLimit?: number; // Max days allowed to edit an estimate
   ownerSignature?: string;
   createdAt: any;
@@ -52,6 +54,8 @@ export interface PricingPackage {
   popular?: boolean;
   type: 'subscription' | 'addon';
   estimateLimit?: number;
+  invoiceLimit?: number;
+  projectLimit?: number;
   staffLimit?: number;
   description?: string;
 }
@@ -260,6 +264,11 @@ export interface LandingPageContent {
   };
   privacyPolicy: string;
   termsAndConditions: string;
+  screenshots?: {
+    title: string;
+    subtitle: string;
+    images: { url: string; caption: string }[];
+  };
 }
 
 export interface SupportContent {

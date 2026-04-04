@@ -50,7 +50,25 @@ export const DEFAULT_LANDING_CONTENT: LandingPageContent = {
     address: "123 Construction Way, Suite 100, Mumbai, Maharashtra 400001"
   },
   privacyPolicy: "# Privacy Policy\n\nYour privacy is important to us...",
-  termsAndConditions: "# Terms and Conditions\n\nBy using our service, you agree to..."
+  termsAndConditions: "# Terms and Conditions\n\nBy using our service, you agree to...",
+  screenshots: {
+    title: "Experience the Power of Precision",
+    subtitle: "Take a tour of our intuitive interface designed for modern contractors.",
+    images: [
+      {
+        url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1000",
+        caption: "Comprehensive Dashboard & Analytics"
+      },
+      {
+        url: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1000",
+        caption: "Professional Estimate Builder"
+      },
+      {
+        url: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&q=80&w=1000",
+        caption: "Real-time Project Tracking"
+      }
+    ]
+  }
 };
 
 export const DEFAULT_SUPPORT_CONTENT: SupportContent = {

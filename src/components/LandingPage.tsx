@@ -45,7 +45,16 @@ export default function LandingPage() {
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'landingPage'), (doc) => {
       if (doc.exists()) {
-        setContent(doc.data() as LandingPageContent);
+        const data = doc.data() as LandingPageContent;
+        setContent({
+          ...DEFAULT_LANDING_CONTENT,
+          ...data,
+          hero: { ...DEFAULT_LANDING_CONTENT.hero, ...data.hero },
+          about: { ...DEFAULT_LANDING_CONTENT.about, ...data.about },
+          packages: { ...DEFAULT_LANDING_CONTENT.packages, ...data.packages },
+          contact: { ...DEFAULT_LANDING_CONTENT.contact, ...data.contact },
+          screenshots: data.screenshots || DEFAULT_LANDING_CONTENT.screenshots
+        });
       }
     });
 
@@ -238,6 +247,43 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Screenshots Section */}
+      {content.screenshots && content.screenshots.images.length > 0 && (
+        <section id="screenshots" className="py-24 px-6 bg-white overflow-hidden">
+          <div className="max-w-7xl mx-auto space-y-16">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-black text-zinc-900">{content.screenshots.title}</h2>
+              <p className="text-zinc-500 max-w-2xl mx-auto">{content.screenshots.subtitle}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {content.screenshots.images.map((img, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  className="space-y-4 group"
+                >
+                  <div className="aspect-video rounded-[32px] overflow-hidden bg-zinc-100 border border-zinc-100 shadow-lg group-hover:shadow-2xl transition-all duration-500">
+                    <img 
+                      src={img.url} 
+                      alt={img.caption} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <p className="text-center font-bold text-zinc-600 group-hover:text-primary transition-colors">
+                    {img.caption}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Packages Section */}
       <section id="packages" className="py-24 px-6">
         <div className="max-w-7xl mx-auto space-y-16">
@@ -260,7 +306,8 @@ export default function LandingPage() {
                   )}
                 >
                   {pkg.popular && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 shadow-lg shadow-primary/20">
+                      <CheckCircle2 className="w-3 h-3" />
                       Most Popular
                     </div>
                   )}
@@ -314,7 +361,8 @@ export default function LandingPage() {
                   )}
                 >
                   {pkg.popular && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 shadow-lg shadow-primary/20">
+                      <CheckCircle2 className="w-3 h-3" />
                       Most Popular
                     </div>
                   )}

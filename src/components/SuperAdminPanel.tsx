@@ -4,7 +4,8 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, quer
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt, X, Monitor } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings, Estimate, Invoice } from '../types';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
@@ -56,13 +57,18 @@ export default function SuperAdminPanel() {
     features: [],
     type: 'subscription',
     estimateLimit: 50,
-    staffLimit: 5
+    invoiceLimit: 50,
+    projectLimit: 10,
+    staffLimit: 5,
+    popular: false
   });
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [staffLimit, setStaffLimit] = useState(5);
   const [estimateLimit, setEstimateLimit] = useState(50);
+  const [invoiceLimit, setInvoiceLimit] = useState(50);
+  const [projectLimit, setProjectLimit] = useState(10);
   const [editTimeLimit, setEditTimeLimit] = useState(7);
   const [planName, setPlanName] = useState('Free Trial');
   const [trialDays, setTrialDays] = useState(14);
@@ -73,6 +79,7 @@ export default function SuperAdminPanel() {
   const [companyToDelete, setCompanyToDelete] = useState<string | null>(null);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [editingPackage, setEditingPackage] = useState<PricingPackage | null>(null);
+  const [selectedCompanyForStaff, setSelectedCompanyForStaff] = useState<Company | null>(null);
   const [successData, setSuccessData] = useState<{ name: string, pass: string } | null>(null);
 
   // Content Management State
@@ -93,7 +100,14 @@ export default function SuperAdminPanel() {
 
     // Fetch Content
     const unsubLanding = onSnapshot(doc(db, 'settings', 'landingPage'), (doc) => {
-      if (doc.exists()) setLandingContent(doc.data() as LandingPageContent);
+      if (doc.exists()) {
+        const data = doc.data() as LandingPageContent;
+        setLandingContent({
+          ...DEFAULT_LANDING_CONTENT,
+          ...data,
+          screenshots: data.screenshots || DEFAULT_LANDING_CONTENT.screenshots
+        });
+      }
     });
     const unsubSupport = onSnapshot(doc(db, 'settings', 'support'), (doc) => {
       if (doc.exists()) setSupportContent(doc.data() as SupportContent);
@@ -147,6 +161,8 @@ export default function SuperAdminPanel() {
         features: [],
         type: 'subscription',
         estimateLimit: 50,
+        invoiceLimit: 50,
+        projectLimit: 10,
         staffLimit: 5
       });
       toast.success('Package added successfully!');
@@ -180,7 +196,12 @@ export default function SuperAdminPanel() {
   const handleSaveLandingContent = async () => {
     setSavingContent(true);
     try {
-      await setDoc(doc(db, 'settings', 'landingPage'), landingContent);
+      // Ensure screenshots are included in the save
+      const contentToSave = {
+        ...landingContent,
+        screenshots: landingContent.screenshots || DEFAULT_LANDING_CONTENT.screenshots
+      };
+      await setDoc(doc(db, 'settings', 'landingPage'), contentToSave);
       toast.success('Landing page content saved successfully!');
     } catch (err: any) {
       setError("Failed to save landing content: " + err.message);
@@ -285,6 +306,8 @@ export default function SuperAdminPanel() {
         expiryDate: Timestamp.fromDate(expiryDate),
         features: selectedFeatures,
         estimateLimit,
+        invoiceLimit,
+        projectLimit,
         editTimeLimit,
         createdAt: Timestamp.now(),
         adminName: newAdminName,
@@ -310,6 +333,8 @@ export default function SuperAdminPanel() {
       setNewAdminName('');
       setStaffLimit(5);
       setEstimateLimit(50);
+      setInvoiceLimit(50);
+      setProjectLimit(10);
       setEditTimeLimit(7);
       setPlanName('Free Trial');
       setTrialDays(14);
@@ -682,6 +707,24 @@ export default function SuperAdminPanel() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Invoice Limit</label>
+                <input
+                  type="number"
+                  value={newPackage.invoiceLimit}
+                  onChange={e => setNewPackage({ ...newPackage, invoiceLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Project Limit</label>
+                <input
+                  type="number"
+                  value={newPackage.projectLimit}
+                  onChange={e => setNewPackage({ ...newPackage, projectLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-zinc-700">Staff Limit</label>
                 <input
                   type="number"
@@ -698,6 +741,17 @@ export default function SuperAdminPanel() {
                   className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
                   placeholder="e.g. Unlimited Estimates, PDF Export, CRM"
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newPackage.popular}
+                    onChange={e => setNewPackage({ ...newPackage, popular: e.target.checked })}
+                    className="w-4 h-4 rounded border-zinc-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm font-bold text-zinc-700">Mark as Popular Package</span>
+                </label>
               </div>
               <div className="md:col-span-2">
                 <button
@@ -731,11 +785,19 @@ export default function SuperAdminPanel() {
                   </button>
                 </div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center relative">
                     <Package className="text-primary w-6 h-6" />
+                    {pkg.popular && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white rounded-full flex items-center justify-center shadow-sm">
+                        <Check size={10} />
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <h3 className="font-bold text-zinc-900">{pkg.name}</h3>
+                    <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                      {pkg.name}
+                      {pkg.popular && <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full uppercase tracking-tighter font-black">Popular</span>}
+                    </h3>
                     <span className="text-xs text-zinc-500 uppercase font-bold tracking-wider">{pkg.type}</span>
                   </div>
                 </div>
@@ -747,6 +809,14 @@ export default function SuperAdminPanel() {
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">Estimates</span>
                     <span className="font-bold text-zinc-900">{pkg.estimateLimit}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Invoices</span>
+                    <span className="font-bold text-zinc-900">{pkg.invoiceLimit || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Projects</span>
+                    <span className="font-bold text-zinc-900">{pkg.projectLimit || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">Staff</span>
@@ -805,6 +875,26 @@ export default function SuperAdminPanel() {
                     type="number"
                     value={estimateLimit}
                     onChange={e => setEstimateLimit(parseInt(e.target.value))}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Invoice Limit</label>
+                  <input
+                    type="number"
+                    value={invoiceLimit}
+                    onChange={e => setInvoiceLimit(parseInt(e.target.value))}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Project Limit</label>
+                  <input
+                    type="number"
+                    value={projectLimit}
+                    onChange={e => setProjectLimit(parseInt(e.target.value))}
                     className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
                     required
                   />
@@ -955,6 +1045,13 @@ export default function SuperAdminPanel() {
                     </div>
                     <div className="flex gap-2">
                       <button 
+                        onClick={() => setSelectedCompanyForStaff(company)}
+                        className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg border border-transparent hover:border-zinc-200 transition-all"
+                        title="View Staff Data"
+                      >
+                        <Users className="w-4 h-4" />
+                      </button>
+                      <button 
                         onClick={() => setEditingCompany(company)}
                         className="p-2 text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/20 transition-all"
                         title="Edit Company"
@@ -987,6 +1084,24 @@ export default function SuperAdminPanel() {
                         type="number"
                         value={company.estimateLimit || 50}
                         onChange={e => handleUpdateCompany(company.id, { estimateLimit: parseInt(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-500 uppercase">Invoice Limit</label>
+                      <input
+                        type="number"
+                        value={company.invoiceLimit || 50}
+                        onChange={e => handleUpdateCompany(company.id, { invoiceLimit: parseInt(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-500 uppercase">Project Limit</label>
+                      <input
+                        type="number"
+                        value={company.projectLimit || 10}
+                        onChange={e => handleUpdateCompany(company.id, { projectLimit: parseInt(e.target.value) })}
                         className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm"
                       />
                     </div>
@@ -1128,6 +1243,86 @@ export default function SuperAdminPanel() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Staff Data Modal */}
+      {selectedCompanyForStaff && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          >
+            <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
+              <div>
+                <h3 className="text-xl font-bold text-zinc-900">{selectedCompanyForStaff.name} - Staff Directory</h3>
+                <p className="text-sm text-zinc-500">Personal data for all registered staff and administrators</p>
+              </div>
+              <button 
+                onClick={() => setSelectedCompanyForStaff(null)}
+                className="p-2 hover:bg-zinc-200 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6 text-zinc-500" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 gap-4">
+                {allStaff.filter(s => s.companyId === selectedCompanyForStaff.id).length === 0 ? (
+                  <div className="text-center py-12 text-zinc-500">No staff members found for this company.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-zinc-100">
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Name</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Role</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Gender</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Birthdate</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Phone</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-500">Email</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {allStaff.filter(s => s.companyId === selectedCompanyForStaff.id).map(member => (
+                          <tr key={member.id} className="hover:bg-zinc-50 transition-colors">
+                            <td className="px-4 py-4">
+                              <div className="font-bold text-zinc-900">{member.name}</div>
+                              <div className="text-[10px] text-zinc-400 font-mono">{member.id}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={cn(
+                                "px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                member.role === 'admin' ? "bg-primary/10 text-primary" : "bg-zinc-100 text-zinc-600"
+                              )}>
+                                {member.role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-sm text-zinc-600">{member.gender || 'N/A'}</td>
+                            <td className="px-4 py-4 text-sm text-zinc-600">
+                              {member.birthdate ? format(new Date(member.birthdate), 'MMM dd, yyyy') : 'N/A'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-zinc-600 font-medium">{member.mobile || 'N/A'}</td>
+                            <td className="px-4 py-4 text-sm text-zinc-500">{member.email}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-zinc-100 bg-zinc-50 flex justify-end">
+              <button 
+                onClick={() => setSelectedCompanyForStaff(null)}
+                className="px-6 py-2 bg-zinc-900 text-white rounded-xl font-bold hover:bg-zinc-800 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {activeView === 'content' && (
@@ -1406,6 +1601,134 @@ export default function SuperAdminPanel() {
                 </div>
               </div>
 
+              {/* Screenshots Section */}
+              <div className="p-6 bg-zinc-50 rounded-2xl space-y-4">
+                <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                  <Monitor className="w-4 h-4 text-primary" />
+                  App Screenshots Section
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700">Title</label>
+                    <input
+                      type="text"
+                      value={landingContent.screenshots?.title || ''}
+                      onChange={e => setLandingContent({ 
+                        ...landingContent, 
+                        screenshots: { 
+                          title: e.target.value, 
+                          subtitle: landingContent.screenshots?.subtitle || '', 
+                          images: landingContent.screenshots?.images || [] 
+                        } 
+                      })}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700">Subtitle</label>
+                    <input
+                      type="text"
+                      value={landingContent.screenshots?.subtitle || ''}
+                      onChange={e => setLandingContent({ 
+                        ...landingContent, 
+                        screenshots: { 
+                          title: landingContent.screenshots?.title || '', 
+                          subtitle: e.target.value, 
+                          images: landingContent.screenshots?.images || [] 
+                        } 
+                      })}
+                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <label className="text-sm font-bold text-zinc-700 uppercase">App Screenshots</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {(landingContent.screenshots?.images || []).map((img, idx) => (
+                      <div key={idx} className="p-4 bg-white rounded-xl border border-zinc-200 space-y-3 relative group">
+                        <button
+                          onClick={() => {
+                            const newImages = (landingContent.screenshots?.images || []).filter((_, i) => i !== idx);
+                            setLandingContent({ 
+                              ...landingContent, 
+                              screenshots: { 
+                                ...landingContent.screenshots!, 
+                                images: newImages 
+                              } 
+                            });
+                          }}
+                          className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        <div className="aspect-video rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 flex items-center justify-center">
+                          {img.url ? (
+                            <img src={img.url} alt={img.caption} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-zinc-400">
+                              <ImageIcon className="w-6 h-6" />
+                              <span className="text-[10px] font-bold">No Preview</span>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Image URL"
+                          value={img.url}
+                          onChange={e => {
+                            const newImages = [...(landingContent.screenshots?.images || [])];
+                            newImages[idx].url = e.target.value;
+                            setLandingContent({ 
+                              ...landingContent, 
+                              screenshots: { 
+                                ...landingContent.screenshots!, 
+                                images: newImages 
+                              } 
+                            });
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg border border-zinc-100 text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Caption"
+                          value={img.caption}
+                          onChange={e => {
+                            const newImages = [...(landingContent.screenshots?.images || [])];
+                            newImages[idx].caption = e.target.value;
+                            setLandingContent({ 
+                              ...landingContent, 
+                              screenshots: { 
+                                ...landingContent.screenshots!, 
+                                images: newImages 
+                              } 
+                            });
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg border border-zinc-100 text-xs font-bold"
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const newImages = [...(landingContent.screenshots?.images || []), { url: '', caption: 'New Screenshot' }];
+                        setLandingContent({ 
+                          ...landingContent, 
+                          screenshots: { 
+                            title: landingContent.screenshots?.title || 'Experience the Power', 
+                            subtitle: landingContent.screenshots?.subtitle || 'Take a tour', 
+                            images: newImages 
+                          } 
+                        });
+                      }}
+                      className="aspect-video rounded-xl border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center gap-2 text-zinc-400 hover:border-primary hover:text-primary transition-all bg-white"
+                    >
+                      <Plus className="w-6 h-6" />
+                      <span className="text-xs font-bold">Add Screenshot</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Contact Section */}
               <div className="p-6 bg-zinc-50 rounded-2xl space-y-4">
                 <h3 className="font-bold text-zinc-900 flex items-center gap-2">
@@ -1602,6 +1925,24 @@ export default function SuperAdminPanel() {
                   type="number"
                   value={editingCompany.estimateLimit || 50}
                   onChange={e => handleUpdateCompany(editingCompany.id, { estimateLimit: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Invoice Limit</label>
+                <input
+                  type="number"
+                  value={editingCompany.invoiceLimit || 50}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { invoiceLimit: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Project Limit</label>
+                <input
+                  type="number"
+                  value={editingCompany.projectLimit || 10}
+                  onChange={e => handleUpdateCompany(editingCompany.id, { projectLimit: parseInt(e.target.value) })}
                   className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
                 />
               </div>
@@ -1807,6 +2148,24 @@ export default function SuperAdminPanel() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Invoice Limit</label>
+                <input
+                  type="number"
+                  value={editingPackage.invoiceLimit || 0}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { invoiceLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Project Limit</label>
+                <input
+                  type="number"
+                  value={editingPackage.projectLimit || 0}
+                  onChange={e => handleUpdatePackage(editingPackage.id, { projectLimit: Number(e.target.value) })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-zinc-700">Staff Limit</label>
                 <input
                   type="number"
@@ -1822,6 +2181,17 @@ export default function SuperAdminPanel() {
                   onChange={e => handleUpdatePackage(editingPackage.id, { features: e.target.value.split(',').map(f => f.trim()) })}
                   className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-24"
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPackage.popular}
+                    onChange={e => handleUpdatePackage(editingPackage.id, { popular: e.target.checked })}
+                    className="w-4 h-4 rounded border-zinc-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm font-bold text-zinc-700">Mark as Popular Package</span>
+                </label>
               </div>
             </div>
 

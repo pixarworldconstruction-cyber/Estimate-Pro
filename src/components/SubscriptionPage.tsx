@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { PricingPackage, Company, PaymentSettings } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Check, Zap, ShieldCheck, CreditCard, Smartphone } from 'lucide-react';
+import { Check, Zap, ShieldCheck, CreditCard, Smartphone, CheckCircle2 } from 'lucide-react';
 import { cn, toDate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -180,7 +180,8 @@ export default function SubscriptionPage({ initialView, setActiveTab }: { initia
               )}
             >
               {pkg.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg shadow-primary/20">
+                  <CheckCircle2 className="w-3 h-3" />
                   Most Popular
                 </div>
               )}
