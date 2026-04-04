@@ -73,6 +73,10 @@ export interface Staff {
   address?: string;
   tempPassword?: string;
   position?: 'Accountant' | 'Manager' | 'Marketing Executive' | 'Sales Executive' | 'Site Engineer' | 'Site Supervisor' | 'Civil Engineer' | 'Custom' | string;
+  gender?: 'Male' | 'Female' | 'Other';
+  birthdate?: string;
+  totalOnlineMinutes?: number;
+  lastActive?: any;
 }
 
 export interface Client {

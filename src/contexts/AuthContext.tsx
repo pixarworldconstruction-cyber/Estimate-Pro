@@ -30,7 +30,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  signUp: (email: string, pass: string, name: string, companyId?: string, referredByCode?: string) => Promise<void>;
+  signUp: (email: string, pass: string, name: string, companyId?: string, referredByCode?: string, gender?: 'Male' | 'Female' | 'Other', birthdate?: string) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (newPass: string) => Promise<void>;
@@ -249,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
-  const signUp = async (email: string, pass: string, name: string, companyId: string = '', referredByCode: string = '') => {
+  const signUp = async (email: string, pass: string, name: string, companyId: string = '', referredByCode: string = '', gender?: 'Male' | 'Female' | 'Other', birthdate?: string) => {
     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
     
     // Check if there's already a pending record for this email
@@ -266,7 +266,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       await setDoc(doc(db, 'staff', user.uid), {
         ...pendingData,
-        uid: user.uid
+        uid: user.uid,
+        gender: gender || pendingData.gender || '',
+        birthdate: birthdate || pendingData.birthdate || ''
       });
       await deleteDoc(pendingStaffDoc.ref);
     } else {
@@ -331,7 +333,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         role,
         uid: user.uid,
-        companyId: finalCompanyId
+        companyId: finalCompanyId,
+        gender: gender || '',
+        birthdate: birthdate || ''
       });
     }
   };

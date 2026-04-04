@@ -10,6 +10,8 @@ export default function Profile() {
   const [name, setName] = useState(staff?.name || '');
   const [mobile, setMobile] = useState(staff?.mobile || '');
   const [address, setAddress] = useState(staff?.address || '');
+  const [gender, setGender] = useState(staff?.gender || '');
+  const [birthdate, setBirthdate] = useState(staff?.birthdate || '');
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const [updatingProfile, setUpdatingProfile] = useState(false);
@@ -21,6 +23,8 @@ export default function Profile() {
       setName(staff.name || '');
       setMobile(staff.mobile || '');
       setAddress(staff.address || '');
+      setGender(staff.gender || '');
+      setBirthdate(staff.birthdate || '');
     }
   }, [staff]);
 
@@ -41,7 +45,9 @@ export default function Profile() {
       await updateDoc(doc(db, 'staff', staff.id), {
         name,
         mobile,
-        address
+        address,
+        gender,
+        birthdate
       });
       setSuccessMessage('Profile updated successfully!');
     } catch (error: any) {
@@ -134,6 +140,28 @@ export default function Profile() {
                   onChange={e => setAddress(e.target.value)}
                   className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all h-24"
                   placeholder="Your address"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Gender</label>
+                <select
+                  value={gender}
+                  onChange={e => setGender(e.target.value as any)}
+                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">Birthdate</label>
+                <input
+                  type="date"
+                  value={birthdate}
+                  onChange={e => setBirthdate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
             </div>

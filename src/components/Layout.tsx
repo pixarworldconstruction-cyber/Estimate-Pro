@@ -31,6 +31,8 @@ import {
   AlertTriangle,
   Clock
 } from 'lucide-react';
+import { db } from '../firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { cn, toDate } from '../lib/utils';
 
 interface LayoutProps {
@@ -44,6 +46,27 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
+
+  React.useEffect(() => {
+    if (!staff?.id) return;
+
+    const interval = setInterval(async () => {
+      // Only count if tab is active and online
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        try {
+          const staffRef = doc(db, 'staff', staff.id);
+          await updateDoc(staffRef, {
+            totalOnlineMinutes: (staff.totalOnlineMinutes || 0) + 1,
+            lastActive: serverTimestamp()
+          });
+        } catch (error) {
+          console.error("Error updating online time:", error);
+        }
+      }
+    }, 60000); // Every minute
+
+    return () => clearInterval(interval);
+  }, [staff?.id, staff?.totalOnlineMinutes]);
 
   React.useEffect(() => {
     const handleOnline = () => setIsOffline(false);

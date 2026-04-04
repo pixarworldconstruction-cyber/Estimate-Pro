@@ -4,9 +4,10 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, quer
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info } from 'lucide-react';
-import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings } from '../types';
-import { format } from 'date-fns';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt } from 'lucide-react';
+import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings, Estimate, Invoice } from '../types';
+import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { cn, toDate } from '../lib/utils';
@@ -41,8 +42,11 @@ const AVAILABLE_FEATURES = [
 
 export default function SuperAdminPanel() {
   const { isSuperAdmin, cleanupExpiredAccounts } = useAuth();
-  const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments'>('companies');
+  const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments' | 'analytics'>('companies');
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [allStaff, setAllStaff] = useState<Staff[]>([]);
+  const [allEstimates, setAllEstimates] = useState<Estimate[]>([]);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [packages, setPackages] = useState<PricingPackage[]>([]);
   const [newPackage, setNewPackage] = useState<Partial<PricingPackage>>({
     name: '',
@@ -103,12 +107,28 @@ export default function SuperAdminPanel() {
       if (doc.exists()) setPaymentSettings(doc.data() as PaymentSettings);
     });
 
+    // Fetch all data for analytics
+    const unsubStaff = onSnapshot(collection(db, 'staff'), (snapshot) => {
+      setAllStaff(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff)));
+    });
+
+    const unsubEstimates = onSnapshot(collection(db, 'estimates'), (snapshot) => {
+      setAllEstimates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Estimate)));
+    });
+
+    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
+      setAllInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
+    });
+
     return () => {
       unsubscribe();
       unsubLanding();
       unsubSupport();
       unsubPackages();
       unsubPayment();
+      unsubStaff();
+      unsubEstimates();
+      unsubInvoices();
     };
   }, [isSuperAdmin]);
 
@@ -400,7 +420,194 @@ export default function SuperAdminPanel() {
           <Smartphone className="w-4 h-4" />
           Payment Settings
         </button>
+        <button
+          onClick={() => setActiveView('analytics')}
+          className={cn(
+            "px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2",
+            activeView === 'analytics' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-zinc-500 hover:bg-zinc-50"
+          )}
+        >
+          <BarChartIcon className="w-4 h-4" />
+          Analytics
+        </button>
       </div>
+
+      {activeView === 'analytics' && (
+        <div className="space-y-8">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-500">Total Online Hours</p>
+                  <p className="text-2xl font-bold text-zinc-900">
+                    {(allStaff.reduce((sum, s) => sum + (s.totalOnlineMinutes || 0), 0) / 60).toFixed(1)}h
+                  </p>
+                </div>
+              </div>
+              <div className="text-xs text-zinc-400">Total across all staff members</div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <FileIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-500">Estimates (Month)</p>
+                  <p className="text-2xl font-bold text-zinc-900">
+                    {allEstimates.filter(e => toDate(e.createdAt) >= startOfMonth(new Date())).length}
+                  </p>
+                </div>
+              </div>
+              <div className="text-xs text-zinc-400">
+                Today: {allEstimates.filter(e => toDate(e.createdAt) >= startOfDay(new Date())).length}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-500">Invoices (Month)</p>
+                  <p className="text-2xl font-bold text-zinc-900">
+                    {allInvoices.filter(i => toDate(i.createdAt) >= startOfMonth(new Date())).length}
+                  </p>
+                </div>
+              </div>
+              <div className="text-xs text-zinc-400">
+                Today: {allInvoices.filter(i => toDate(i.createdAt) >= startOfDay(new Date())).length}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-500">Total Turnover</p>
+                  <p className="text-2xl font-bold text-zinc-900">
+                    ₹{(allInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0) / 100000).toFixed(2)}L
+                  </p>
+                </div>
+              </div>
+              <div className="text-xs text-zinc-400">Total value of all invoices</div>
+            </div>
+          </div>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
+              <h3 className="text-lg font-bold text-zinc-900 mb-6 flex items-center gap-2">
+                <TrendingUp className="text-primary w-5 h-5" />
+                Activity Trend (Last 7 Days)
+              </h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={Array.from({ length: 7 }).map((_, i) => {
+                    const date = subDays(new Date(), i);
+                    const start = startOfDay(date);
+                    const end = endOfDay(date);
+                    return {
+                      name: format(date, 'MMM dd'),
+                      estimates: allEstimates.filter(e => {
+                        const d = toDate(e.createdAt);
+                        return d >= start && d <= end;
+                      }).length,
+                      invoices: allInvoices.filter(inv => {
+                        const d = toDate(inv.createdAt);
+                        return d >= start && d <= end;
+                      }).length
+                    };
+                  }).reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="estimates" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} activeDot={{ r: 6 }} name="Estimates" />
+                    <Line type="monotone" dataKey="invoices" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} name="Invoices" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
+              <h3 className="text-lg font-bold text-zinc-900 mb-6 flex items-center gap-2">
+                <Building2 className="text-primary w-5 h-5" />
+                Top Companies by Turnover
+              </h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={companies.map(c => ({
+                    name: c.name,
+                    turnover: allInvoices.filter(inv => inv.companyId === c.id).reduce((sum, inv) => sum + (inv.total || 0), 0)
+                  })).sort((a, b) => b.turnover - a.turnover).slice(0, 5)}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <Tooltip 
+                      formatter={(value: number) => `₹${value.toLocaleString()}`}
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Bar dataKey="turnover" fill="#f59e0b" radius={[6, 6, 0, 0]} name="Turnover" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Table */}
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-zinc-100">
+              <h3 className="text-lg font-bold text-zinc-900">Company Performance Detail</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-zinc-50">
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Company</th>
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500 text-center">Online Hours</th>
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500 text-center">Estimates</th>
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500 text-center">Invoices</th>
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500 text-right">Turnover</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {companies.map(company => {
+                    const companyStaff = allStaff.filter(s => s.companyId === company.id);
+                    const onlineMinutes = companyStaff.reduce((sum, s) => sum + (s.totalOnlineMinutes || 0), 0);
+                    const estimates = allEstimates.filter(e => e.companyId === company.id).length;
+                    const invoices = allInvoices.filter(i => i.companyId === company.id).length;
+                    const turnover = allInvoices.filter(i => i.companyId === company.id).reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+                    return (
+                      <tr key={company.id} className="hover:bg-zinc-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-zinc-900">{company.name}</div>
+                          <div className="text-xs text-zinc-500">{company.planName}</div>
+                        </td>
+                        <td className="px-6 py-4 text-center font-medium text-zinc-600">{(onlineMinutes / 60).toFixed(1)}h</td>
+                        <td className="px-6 py-4 text-center font-medium text-zinc-600">{estimates}</td>
+                        <td className="px-6 py-4 text-center font-medium text-zinc-600">{invoices}</td>
+                        <td className="px-6 py-4 text-right font-bold text-zinc-900">₹{turnover.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeView === 'packages' && (
         <div className="space-y-8">

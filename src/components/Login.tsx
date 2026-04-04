@@ -9,6 +9,8 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Other' | ''>('');
+  const [birthdate, setBirthdate] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -22,7 +24,7 @@ export default function Login() {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signUp(email, password, name, '', referralCode);
+        await signUp(email, password, name, '', referralCode, gender as any, birthdate);
       } else {
         await signIn(email, password);
       }
@@ -90,6 +92,32 @@ export default function Login() {
                 onChange={(e) => setName(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
               />
+            </div>
+          )}
+          {isSignUp && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative">
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value as any)}
+                  required
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-zinc-600 appearance-none"
+                >
+                  <option value="">Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="relative">
+                <input
+                  type="date"
+                  required
+                  value={birthdate}
+                  onChange={(e) => setBirthdate(e.target.value)}
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-zinc-600"
+                />
+              </div>
             </div>
           )}
           {isSignUp && (
