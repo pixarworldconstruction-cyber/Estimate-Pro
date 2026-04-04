@@ -45,10 +45,23 @@ export default function NotificationManager() {
 
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try {
-              new Notification(message, {
-                body: description,
-                icon: '/favicon.ico'
-              });
+              // Try Service Worker first for better background support
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(registration => {
+                  registration.showNotification(message, {
+                    body: description,
+                    icon: '/favicon.ico',
+                    badge: '/favicon.ico',
+                    tag: doc.id, // Prevent duplicate notifications
+                    renotify: true
+                  } as any);
+                });
+              } else {
+                new Notification(message, {
+                  body: description,
+                  icon: '/favicon.ico'
+                });
+              }
             } catch (e) {
               console.error('Browser notification failed:', e);
             }

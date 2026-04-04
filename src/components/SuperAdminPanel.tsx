@@ -91,6 +91,14 @@ export default function SuperAdminPanel() {
   });
   const [savingContent, setSavingContent] = useState(false);
   const [uploadingQR, setUploadingQR] = useState(false);
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingScreenshot, setUploadingScreenshot] = useState<number | null>(null);
+
+  const handleFileUpload = async (file: File, path: string) => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
+  };
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -1379,13 +1387,57 @@ export default function SuperAdminPanel() {
                     />
                   </div>
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-sm font-semibold text-zinc-700">Hero Image URL</label>
-                    <input
-                      type="text"
-                      value={landingContent.hero.imageUrl}
-                      onChange={e => setLandingContent({ ...landingContent, hero: { ...landingContent.hero, imageUrl: e.target.value } })}
-                      className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
-                    />
+                    <label className="text-sm font-semibold text-zinc-700">Hero Image</label>
+                    <div className="flex gap-4 items-start">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Image URL"
+                          value={landingContent.hero.imageUrl}
+                          onChange={e => setLandingContent({ ...landingContent, hero: { ...landingContent.hero, imageUrl: e.target.value } })}
+                          className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                        />
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50 transition-all text-sm font-bold text-zinc-600">
+                            <Upload className="w-4 h-4" />
+                            {uploadingHero ? 'Uploading...' : 'Upload Image'}
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              disabled={uploadingHero}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingHero(true);
+                                try {
+                                  const url = await handleFileUpload(file, `landing/hero_${Date.now()}`);
+                                  setLandingContent({ ...landingContent, hero: { ...landingContent.hero, imageUrl: url } });
+                                  toast.success('Hero image uploaded!');
+                                } catch (err: any) {
+                                  toast.error('Upload failed: ' + err.message);
+                                } finally {
+                                  setUploadingHero(false);
+                                }
+                              }}
+                            />
+                          </label>
+                          {landingContent.hero.imageUrl && (
+                            <button 
+                              onClick={() => setLandingContent({ ...landingContent, hero: { ...landingContent.hero, imageUrl: '' } })}
+                              className="text-xs font-bold text-red-500 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {landingContent.hero.imageUrl && (
+                        <div className="w-32 aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                          <img src={landingContent.hero.imageUrl} alt="Hero Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1689,6 +1741,40 @@ export default function SuperAdminPanel() {
                           }}
                           className="w-full px-3 py-1.5 rounded-lg border border-zinc-100 text-xs"
                         />
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 flex items-center justify-center gap-2 py-1.5 bg-zinc-50 border border-dashed border-zinc-200 rounded-lg cursor-pointer hover:bg-zinc-100 transition-all text-[10px] font-bold text-zinc-500">
+                            <Upload className="w-3 h-3" />
+                            {uploadingScreenshot === idx ? '...' : 'Upload'}
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              disabled={uploadingScreenshot !== null}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingScreenshot(idx);
+                                try {
+                                  const url = await handleFileUpload(file, `landing/screenshot_${idx}_${Date.now()}`);
+                                  const newImages = [...(landingContent.screenshots?.images || [])];
+                                  newImages[idx].url = url;
+                                  setLandingContent({ 
+                                    ...landingContent, 
+                                    screenshots: { 
+                                      ...landingContent.screenshots!, 
+                                      images: newImages 
+                                    } 
+                                  });
+                                  toast.success('Screenshot uploaded!');
+                                } catch (err: any) {
+                                  toast.error('Upload failed: ' + err.message);
+                                } finally {
+                                  setUploadingScreenshot(null);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
                         <input
                           type="text"
                           placeholder="Caption"

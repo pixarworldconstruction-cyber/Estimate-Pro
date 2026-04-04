@@ -9,6 +9,7 @@ import {
   Calculator, 
   ShieldCheck,
   Package,
+  Monitor,
   Mail,
   Phone,
   MapPin,
@@ -201,13 +202,20 @@ export default function LandingPage() {
             viewport={{ once: true }}
             className="relative"
           >
-            <div className="aspect-square bg-zinc-100 rounded-[60px] overflow-hidden shadow-2xl relative z-10">
-              <img 
-                src={content.hero.imageUrl} 
-                alt="Hero"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+            <div className="aspect-square bg-zinc-100 rounded-[60px] overflow-hidden shadow-2xl relative z-10 flex items-center justify-center">
+              {content.hero.imageUrl ? (
+                <img 
+                  src={content.hero.imageUrl} 
+                  alt="Hero"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-4 text-zinc-400">
+                  <Construction className="w-20 h-20 opacity-20" />
+                  <span className="font-bold text-lg">Construction Pro</span>
+                </div>
+              )}
             </div>
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl" />
             <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-primary/20 rounded-full blur-3xl" />
@@ -266,13 +274,20 @@ export default function LandingPage() {
                   transition={{ delay: i * 0.1 }}
                   className="space-y-4 group"
                 >
-                  <div className="aspect-video rounded-[32px] overflow-hidden bg-zinc-100 border border-zinc-100 shadow-lg group-hover:shadow-2xl transition-all duration-500">
-                    <img 
-                      src={img.url} 
-                      alt={img.caption} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                      referrerPolicy="no-referrer"
-                    />
+                  <div className="aspect-video rounded-[32px] overflow-hidden bg-zinc-100 border border-zinc-100 shadow-lg group-hover:shadow-2xl transition-all duration-500 flex items-center justify-center">
+                    {img.url ? (
+                      <img 
+                        src={img.url} 
+                        alt={img.caption} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-zinc-400">
+                        <Monitor className="w-12 h-12 opacity-20" />
+                        <span className="text-xs font-bold">Screenshot Preview</span>
+                      </div>
+                    )}
                   </div>
                   <p className="text-center font-bold text-zinc-600 group-hover:text-primary transition-colors">
                     {img.caption}

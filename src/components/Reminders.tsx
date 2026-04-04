@@ -68,12 +68,24 @@ export default function Reminders() {
     // Browser Notification
     if (typeof Notification !== 'undefined' && notificationPermission === 'granted') {
       try {
-        new Notification('Reminder Due!', {
-          body: message,
-          icon: '/favicon.ico',
-          vibrate: [200, 100, 200], // Android vibration
-          tag: reminder.id
-        } as any);
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification('Reminder Due!', {
+              body: message,
+              icon: '/favicon.ico',
+              vibrate: [200, 100, 200],
+              tag: reminder.id,
+              renotify: true,
+              data: window.location.origin + '/reminders'
+            } as any);
+          });
+        } else {
+          new Notification('Reminder Due!', {
+            body: message,
+            icon: '/favicon.ico',
+            tag: reminder.id
+          });
+        }
       } catch (e) {
         console.error('Browser notification failed:', e);
       }
