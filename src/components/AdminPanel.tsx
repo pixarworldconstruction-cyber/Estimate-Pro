@@ -5,7 +5,7 @@ import { ref, uploadBytesResumable, uploadBytes, getDownloadURL } from 'firebase
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap, TrendingUp, PenTool, Ruler, Calculator as CalcIcon, HardHat, Lock, Smartphone } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, UserPlus, Shield, Settings, Users, X, FileText, Package, Bell, Clock, CheckCircle2, Phone, MapPin, Edit2, Mail, Zap, TrendingUp, PenTool, Ruler, Calculator as CalcIcon, HardHat, Lock, Smartphone, MessageCircle, Globe } from 'lucide-react';
 import { Staff, Company } from '../types';
 import { cn, toDate } from '../lib/utils';
 import { ALL_FEATURES as features } from '../constants/features';
@@ -417,6 +417,19 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
       setUploading(false);
       setShowDeleteConfirm(false);
     }
+  };
+
+  const [whatsappModal, setWhatsappModal] = useState<{ isOpen: boolean, phone: string }>({ isOpen: false, phone: '' });
+
+  const cleanPhone = (phone: string) => phone ? phone.replace(/\D/g, '') : '';
+  const getWhatsAppUrl = (phone: string, isBusiness: boolean = false) => {
+    const cleaned = cleanPhone(phone);
+    if (!cleaned) return '#';
+    const formatted = cleaned.length === 10 ? `91${cleaned}` : cleaned;
+    if (isBusiness) {
+      return `whatsapp-business://send?phone=${formatted}`;
+    }
+    return `https://wa.me/${formatted}`;
   };
 
   if (!isAdmin) return <div className="p-8 text-center">Access Denied</div>;
@@ -985,9 +998,27 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-200/50">
                 {member.mobile && (
-                  <div className="flex items-center gap-2 text-sm text-zinc-600">
-                    <Phone className="w-4 h-4 text-primary" />
-                    {member.mobile}
+                  <div className="flex items-center justify-between gap-2 text-sm text-zinc-600">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-primary" />
+                      {member.mobile}
+                    </div>
+                    <div className="flex gap-2">
+                      <a 
+                        href={`tel:${cleanPhone(member.mobile)}`}
+                        className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all"
+                        title="Call"
+                      >
+                        <Phone className="w-3 h-3" />
+                      </a>
+                      <button 
+                        onClick={() => setWhatsappModal({ isOpen: true, phone: member.mobile })}
+                        className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-all"
+                        title="WhatsApp"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
                 {member.address && (
@@ -1014,6 +1045,49 @@ export default function AdminPanel({ setActiveTab }: { setActiveTab?: (tab: stri
           ))}
         </div>
       </div>
+
+      {/* WhatsApp Choice Modal */}
+      {whatsappModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[40px] max-w-md w-full space-y-6 shadow-2xl border border-zinc-100">
+            <div className="w-20 h-20 bg-green-50 text-green-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <MessageCircle className="w-10 h-10" />
+            </div>
+            <div className="text-center space-y-3">
+              <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">Choose WhatsApp</h3>
+              <p className="text-zinc-500 text-sm font-medium">
+                How would you like to open WhatsApp?
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <a 
+                href={getWhatsAppUrl(whatsappModal.phone, false)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Standard WhatsApp
+              </a>
+              <a 
+                href={getWhatsAppUrl(whatsappModal.phone, true)}
+                onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+              >
+                <Zap className="w-5 h-5" />
+                WhatsApp Business
+              </a>
+              <button 
+                onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                className="px-6 py-4 rounded-2xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Staff Modal */}
       {editingStaff && (

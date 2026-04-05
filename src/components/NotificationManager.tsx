@@ -43,6 +43,18 @@ export default function NotificationManager() {
           const message = `Reminder: ${data.title}`;
           const description = data.description || 'You have an upcoming task.';
 
+          if ((window as any).median) {
+            try {
+              (window as any).median.localNotifications.create({
+                title: message,
+                body: description,
+                id: doc.id
+              });
+            } catch (e) {
+              console.error('Median notification failed:', e);
+            }
+          }
+
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try {
               // Try Service Worker first for better background support

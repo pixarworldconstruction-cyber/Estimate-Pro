@@ -101,8 +101,9 @@ export default function ItemCatalog() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px] md:min-w-full">
+            <thead>
             <tr className="bg-zinc-50 border-b border-zinc-100">
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Item Name</th>
               <th className="px-6 py-4 text-sm font-bold text-zinc-600 uppercase tracking-wider">Unit</th>
@@ -132,7 +133,7 @@ export default function ItemCatalog() {
                   {formatCurrency(item.price * (1 + item.gst / 100))}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-all opacity-100">
                     <button 
                       onClick={() => {
                         setSelectedItem(item);
@@ -155,7 +156,8 @@ export default function ItemCatalog() {
             ))}
           </tbody>
         </table>
-        {filteredItems.length === 0 && (
+      </div>
+      {filteredItems.length === 0 && (
           <div className="p-12 text-center text-zinc-400 italic">
             No items found.
           </div>

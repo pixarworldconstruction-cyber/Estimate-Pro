@@ -65,6 +65,19 @@ export default function Reminders() {
     const client = clients.find(c => c.id === reminder.clientId);
     const message = `${reminder.title} for ${client?.name || 'Client'}`;
 
+    // Median.co (GoNative) Native Notification Support
+    if ((window as any).median) {
+      try {
+        (window as any).median.localNotifications.create({
+          title: 'Reminder Due!',
+          body: message,
+          id: reminder.id
+        });
+      } catch (e) {
+        console.error('Median notification failed:', e);
+      }
+    }
+
     // Browser Notification
     if (typeof Notification !== 'undefined' && notificationPermission === 'granted') {
       try {
@@ -159,8 +172,40 @@ export default function Reminders() {
 
     if (selectedReminder) {
       await updateDoc(doc(db, 'reminders', selectedReminder.id), dataToSave);
+      
+      // Median.co (GoNative) - Update Native Local Notification
+      if ((window as any).median) {
+        try {
+          // Cancel old and create new
+          (window as any).median.localNotifications.cancel({ id: selectedReminder.id });
+          if (dataToSave.status === 'pending') {
+            (window as any).median.localNotifications.create({
+              title: 'Updated Reminder',
+              body: dataToSave.title,
+              date: dataToSave.dueDate,
+              id: selectedReminder.id
+            });
+          }
+        } catch (e) {
+          console.error('Median update failed:', e);
+        }
+      }
     } else {
-      await addDoc(collection(db, 'reminders'), dataToSave);
+      const docRef = await addDoc(collection(db, 'reminders'), dataToSave);
+      
+      // Median.co (GoNative) - Schedule Native Local Notification
+      if ((window as any).median && dataToSave.status === 'pending') {
+        try {
+          (window as any).median.localNotifications.create({
+            title: 'Upcoming Reminder',
+            body: dataToSave.title,
+            date: dataToSave.dueDate, // Median accepts ISO strings or Date objects
+            id: docRef.id
+          });
+        } catch (e) {
+          console.error('Median scheduling failed:', e);
+        }
+      }
     }
     setIsModalOpen(false);
     setSelectedReminder(null);
@@ -170,12 +215,39 @@ export default function Reminders() {
   const handleDelete = async () => {
     if (!reminderToDelete) return;
     await deleteDoc(doc(db, 'reminders', reminderToDelete));
+    
+    // Median.co (GoNative) - Cancel Native Local Notification
+    if ((window as any).median) {
+      try {
+        (window as any).median.localNotifications.cancel({ id: reminderToDelete });
+      } catch (e) {
+        console.error('Median cancel failed:', e);
+      }
+    }
     setReminderToDelete(null);
   };
 
   const toggleStatus = async (reminder: Reminder) => {
     const newStatus = reminder.status === 'done' ? 'pending' : 'done';
     await updateDoc(doc(db, 'reminders', reminder.id), { status: newStatus });
+    
+    // Median.co (GoNative) - Handle Native Local Notification
+    if ((window as any).median) {
+      try {
+        if (newStatus === 'done') {
+          (window as any).median.localNotifications.cancel({ id: reminder.id });
+        } else {
+          (window as any).median.localNotifications.create({
+            title: 'Upcoming Reminder',
+            body: reminder.title,
+            date: reminder.dueDate,
+            id: reminder.id
+          });
+        }
+      } catch (e) {
+        console.error('Median toggle failed:', e);
+      }
+    }
   };
 
   return (

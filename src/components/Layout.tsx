@@ -69,8 +69,18 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   }, [staff?.id, staff?.totalOnlineMinutes]);
 
   React.useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => {
+      setIsOffline(false);
+      toast.success('Back online! Syncing data...', {
+        icon: <Database className="w-4 h-4 text-green-500" />
+      });
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      toast.error('You are offline. Changes will sync when reconnected.', {
+        icon: <Database className="w-4 h-4 text-amber-500" />
+      });
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -268,6 +278,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         <div className="flex items-center gap-2">
           <Construction className="text-primary w-6 h-6" />
           <span className="font-bold text-zinc-900">Construction Pro</span>
+          {isOffline && (
+            <div className="ml-2 w-2 h-2 bg-amber-500 rounded-full animate-pulse" title="Offline Mode" />
+          )}
         </div>
         <button onClick={() => setIsMobileMenuOpen(true)}>
           <Menu className="w-6 h-6 text-zinc-600" />
@@ -280,6 +293,12 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
           <div className="absolute right-0 top-0 bottom-0 w-64 bg-white flex flex-col">
             <div className="p-6 flex justify-between items-center border-b border-zinc-100">
               <span className="font-bold text-zinc-900">Menu</span>
+              {isOffline && (
+                <div className="px-3 py-1 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2 text-amber-700 animate-pulse">
+                  <Database className="w-3 h-3" />
+                  <span className="text-[8px] font-black uppercase tracking-widest">Offline</span>
+                </div>
+              )}
               <button onClick={() => setIsMobileMenuOpen(false)}>
                 <X className="w-6 h-6 text-zinc-600" />
               </button>

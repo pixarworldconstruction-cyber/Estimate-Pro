@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
-import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle, Smartphone } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle, Smartphone, MessageCircle, Zap, Globe, Mic, MicOff, Download, Loader2 } from 'lucide-react';
 import { Client, CRMHistory, Reminder, Estimate } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { cn, formatCurrency, toDate } from '../lib/utils';
@@ -22,7 +23,105 @@ export default function ClientDirectory() {
   const [clientEstimates, setClientEstimates] = useState<Estimate[]>([]);
   const [historyNotes, setHistoryNotes] = useState('');
   const [historyType, setHistoryType] = useState<'chat' | 'call' | 'meeting'>('chat');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
+
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await processAudioWithGemini(audioBlob);
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.info('Recording started... Speak now.');
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      toast.error('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const processAudioWithGemini = async (audioBlob: Blob) => {
+    setIsProcessing(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: [
+            {
+              parts: [
+                {
+                  text: "Transcribe this audio. It may contain English, Hindi, or Gujarati. Automatically identify different speakers and label them as 'Person 1:', 'Person 2:', etc. Return only the transcript with speaker labels. Do not include any other text or explanations."
+                },
+                {
+                  inlineData: {
+                    mimeType: "audio/webm",
+                    data: base64Audio
+                  }
+                }
+              ]
+            }
+          ]
+        });
+
+        const transcript = response.text;
+        if (transcript) {
+          setHistoryNotes(prev => prev + (prev ? '\n\n' : '') + transcript);
+          toast.success('Transcription complete!');
+        }
+        setIsProcessing(false);
+      };
+    } catch (err) {
+      console.error('Error processing audio with Gemini:', err);
+      toast.error('Failed to transcribe audio.');
+      setIsProcessing(false);
+    }
+  };
+
+  const downloadHistoryAsText = (history: CRMHistory) => {
+    const clientName = viewingClient?.name || 'Client';
+    const content = `Interaction Log\n\nClient: ${clientName}\nType: ${history.type.toUpperCase()}\nDate: ${format(new Date(history.timestamp), 'dd MMM yyyy, HH:mm')}\n\nNotes:\n${history.notes}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Interaction_${clientName}_${format(new Date(history.timestamp), 'yyyyMMdd_HHmm')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Document saved successfully');
+  };
 
   const [formData, setFormData] = useState<Partial<Client>>({
     name: '',
@@ -179,24 +278,44 @@ export default function ClientDirectory() {
     c.mob1.includes(search)
   );
 
+  const [whatsappModal, setWhatsappModal] = useState<{ isOpen: boolean, phone: string }>({ isOpen: false, phone: '' });
+
+  const cleanPhone = (phone: string) => phone.replace(/\D/g, '');
+  const getWhatsAppUrl = (phone: string, isBusiness: boolean = false) => {
+    const cleaned = cleanPhone(phone);
+    const formatted = cleaned.length === 10 ? `91${cleaned}` : cleaned;
+    return isBusiness 
+      ? `whatsapp-business://send?phone=${formatted}`
+      : `https://wa.me/${formatted}`;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-bold text-zinc-900">Client Directory</h1>
-        <button
-          onClick={() => {
-            setSelectedClient(null);
-            setFormData({
-              name: '', currentAddress: '', siteAddress: '', mob1: '', mob2: '',
-              projectType: 'Turnkey', projectCategory: 'Residential', budget: 0, details: ''
-            });
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
-        >
-          <Plus className="w-5 h-5" />
-          Add New Client
-        </button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button
+            onClick={importFromContacts}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-zinc-100 text-zinc-600 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-all"
+          >
+            <Smartphone className="w-5 h-5" />
+            Import
+          </button>
+          <button
+            onClick={() => {
+              setSelectedClient(null);
+              setFormData({
+                name: '', currentAddress: '', siteAddress: '', mob1: '', mob2: '',
+                projectType: 'Turnkey', projectCategory: 'Residential', budget: 0, details: ''
+              });
+              setIsModalOpen(true);
+            }}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            Add New
+          </button>
+        </div>
       </div>
 
       <div className="relative">
@@ -217,7 +336,7 @@ export default function ClientDirectory() {
               <div className="w-12 h-12 bg-primary-light rounded-xl flex items-center justify-center font-bold text-primary text-xl">
                 {client.name[0]}
               </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+              <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-all opacity-100">
                 <button 
                   onClick={() => {
                     setSelectedClient(client);
@@ -245,6 +364,23 @@ export default function ClientDirectory() {
             <div className="flex items-center gap-2 text-zinc-500 text-sm mb-4">
               <Phone className="w-3 h-3" />
               {client.mob1} {client.mob2 && `/ ${client.mob2}`}
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <a 
+                href={`tel:${cleanPhone(client.mob1)}`}
+                className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-all"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Call
+              </a>
+              <button 
+                onClick={() => setWhatsappModal({ isOpen: true, phone: client.mob1 })}
+                className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 text-green-600 rounded-xl text-xs font-bold hover:bg-green-100 transition-all"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                WhatsApp
+              </button>
             </div>
 
             <div className="space-y-2 mb-6">
@@ -276,6 +412,49 @@ export default function ClientDirectory() {
           </div>
         ))}
       </div>
+
+      {/* WhatsApp Choice Modal */}
+      {whatsappModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[40px] max-w-md w-full space-y-6 shadow-2xl border border-zinc-100">
+            <div className="w-20 h-20 bg-green-50 text-green-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <MessageCircle className="w-10 h-10" />
+            </div>
+            <div className="text-center space-y-3">
+              <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">Choose WhatsApp</h3>
+              <p className="text-zinc-500 text-sm font-medium">
+                Which version of WhatsApp would you like to use?
+              </p>
+            </div>
+              <div className="grid grid-cols-1 gap-3">
+                <a 
+                  href={getWhatsAppUrl(whatsappModal.phone, false)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Standard WhatsApp
+                </a>
+                <a 
+                  href={getWhatsAppUrl(whatsappModal.phone, true)}
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                >
+                  <Zap className="w-5 h-5" />
+                  WhatsApp Business
+                </a>
+                <button 
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="px-6 py-4 rounded-2xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
@@ -423,7 +602,7 @@ export default function ClientDirectory() {
               </div>
               <div>
                 <h2 className="text-3xl font-bold text-zinc-900 mb-2">{viewingClient.name}</h2>
-                <div className="flex flex-wrap gap-4 text-zinc-500">
+                <div className="flex flex-wrap gap-4 text-zinc-500 mb-4">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" />
                     {viewingClient.mob1}
@@ -432,6 +611,22 @@ export default function ClientDirectory() {
                     <MapPin className="w-4 h-4" />
                     {viewingClient.siteAddress}
                   </div>
+                </div>
+                <div className="flex gap-3">
+                  <a 
+                    href={`tel:${cleanPhone(viewingClient.mob1)}`}
+                    className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:scale-105 transition-all"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Call Now
+                  </a>
+                  <button 
+                    onClick={() => setWhatsappModal({ isOpen: true, phone: viewingClient.mob1 })}
+                    className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-200 hover:scale-105 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    WhatsApp
+                  </button>
                 </div>
               </div>
             </div>
@@ -446,7 +641,7 @@ export default function ClientDirectory() {
                   
                   {/* Add History Form */}
                   <div className="mb-6 bg-white p-4 rounded-xl border border-zinc-100 space-y-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {['chat', 'call', 'meeting'].map(type => (
                         <button
                           key={type}
@@ -460,12 +655,35 @@ export default function ClientDirectory() {
                         </button>
                       ))}
                     </div>
-                    <textarea
-                      placeholder="Add interaction notes..."
-                      value={historyNotes}
-                      onChange={e => setHistoryNotes(e.target.value)}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-100 outline-none focus:border-primary h-20"
-                    />
+
+                    <div className="relative">
+                      <textarea
+                        placeholder="Add interaction notes..."
+                        value={historyNotes}
+                        onChange={e => setHistoryNotes(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-100 outline-none focus:border-primary h-32 pr-10"
+                        disabled={isProcessing}
+                      />
+                      <button
+                        onClick={isRecording ? stopRecording : startRecording}
+                        disabled={isProcessing}
+                        className={cn(
+                          "absolute right-2 bottom-2 p-2 rounded-full transition-all",
+                          isRecording ? "bg-red-500 text-white animate-pulse" : 
+                          isProcessing ? "bg-zinc-100 text-zinc-400 cursor-not-allowed" :
+                          "bg-zinc-100 text-zinc-400 hover:bg-zinc-200"
+                        )}
+                        title={isRecording ? "Stop Recording" : "Start Voice Recording"}
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                         isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {isProcessing && (
+                      <div className="text-[10px] text-zinc-400 italic animate-pulse">
+                        AI is identifying speakers and transcribing...
+                      </div>
+                    )}
                     <button
                       onClick={handleAddHistory}
                       className="w-full py-2 bg-zinc-900 text-white text-xs font-bold rounded-lg hover:bg-zinc-800 transition-all"
@@ -476,9 +694,18 @@ export default function ClientDirectory() {
 
                   <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
                     {crmHistory.map(h => (
-                      <div key={h.id} className="bg-white p-3 rounded-xl border border-zinc-100 text-sm">
+                      <div key={h.id} className="bg-white p-3 rounded-xl border border-zinc-100 text-sm group/item">
                         <div className="flex justify-between mb-1">
-                          <span className="font-bold uppercase text-[10px] tracking-wider text-primary">{h.type}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold uppercase text-[10px] tracking-wider text-primary">{h.type}</span>
+                            <button 
+                              onClick={() => downloadHistoryAsText(h)}
+                              className="opacity-0 group-hover/item:opacity-100 p-1 text-zinc-400 hover:text-primary transition-all"
+                              title="Download as Text Document"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          </div>
                           <span className="text-zinc-400 text-[10px]">{format(new Date(h.timestamp), 'dd MMM, HH:mm')}</span>
                         </div>
                         <p className="text-zinc-600">{h.notes}</p>

@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, quer
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt, X, Monitor } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt, X, Monitor, MessageCircle, Phone } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings, Estimate, Invoice } from '../types';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -405,6 +405,18 @@ export default function SuperAdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const [whatsappModal, setWhatsappModal] = useState<{ isOpen: boolean, phone: string }>({ isOpen: false, phone: '' });
+
+  const cleanPhone = (phone: string) => phone ? phone.replace(/\D/g, '') : '';
+  const getWhatsAppUrl = (phone: string, isBusiness: boolean = false) => {
+    const cleaned = cleanPhone(phone);
+    if (!cleaned) return '#';
+    const formatted = cleaned.length === 10 ? `91${cleaned}` : cleaned;
+    return isBusiness 
+      ? `whatsapp-business://send?phone=${formatted}`
+      : `https://wa.me/${formatted}`;
   };
 
   if (!isSuperAdmin) return <div className="p-8 text-center text-red-500 font-bold">Access Denied</div>;
@@ -1310,7 +1322,29 @@ export default function SuperAdminPanel() {
                             <td className="px-4 py-4 text-sm text-zinc-600">
                               {member.birthdate ? format(new Date(member.birthdate), 'MMM dd, yyyy') : 'N/A'}
                             </td>
-                            <td className="px-4 py-4 text-sm text-zinc-600 font-medium">{member.mobile || 'N/A'}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-sm text-zinc-600 font-medium">{member.mobile || 'N/A'}</span>
+                                {member.mobile && (
+                                  <div className="flex gap-2">
+                                    <a 
+                                      href={`tel:${cleanPhone(member.mobile)}`}
+                                      className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all"
+                                      title="Call"
+                                    >
+                                      <Phone className="w-3 h-3" />
+                                    </a>
+                                    <button 
+                                      onClick={() => setWhatsappModal({ isOpen: true, phone: member.mobile })}
+                                      className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-all"
+                                      title="WhatsApp"
+                                    >
+                                      <MessageCircle className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-4 text-sm text-zinc-500">{member.email}</td>
                           </tr>
                         ))}
@@ -1965,6 +1999,49 @@ export default function SuperAdminPanel() {
                 />
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Choice Modal */}
+      {whatsappModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[40px] max-w-md w-full space-y-6 shadow-2xl border border-zinc-100">
+            <div className="w-20 h-20 bg-green-50 text-green-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <MessageCircle className="w-10 h-10" />
+            </div>
+            <div className="text-center space-y-3">
+              <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">Choose WhatsApp</h3>
+              <p className="text-zinc-500 text-sm font-medium">
+                Which version of WhatsApp would you like to use?
+              </p>
+            </div>
+              <div className="grid grid-cols-1 gap-3">
+                <a 
+                  href={getWhatsAppUrl(whatsappModal.phone, false)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Standard WhatsApp
+                </a>
+                <a 
+                  href={getWhatsAppUrl(whatsappModal.phone, true)}
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                >
+                  <Zap className="w-5 h-5" />
+                  WhatsApp Business
+                </a>
+                <button 
+                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
+                  className="px-6 py-4 rounded-2xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
           </div>
         </div>
       )}
