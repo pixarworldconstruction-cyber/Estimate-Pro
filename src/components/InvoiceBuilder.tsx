@@ -43,7 +43,7 @@ import {
   orderBy,
   getDocs
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Invoice, InvoiceItem, Item, Client, Estimate } from '../types';
 import { format } from 'date-fns';
 import { cn, formatCurrency, toDate } from '../lib/utils';
@@ -81,14 +81,23 @@ export default function InvoiceBuilder() {
     if (!staff) return;
 
     const invoicesQuery = isSuperAdmin
-      ? query(collection(db, 'invoices'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'invoices'), where('companyId', '==', staff.companyId), orderBy('createdAt', 'desc'));
+      ? query(collection(db, 'invoices'))
+      : query(collection(db, 'invoices'), where('companyId', '==', staff.companyId));
 
     const unsubscribe = onSnapshot(invoicesQuery, (snapshot) => {
-      setInvoices(snapshot.docs.map(doc => ({
+      const fetchedInvoices = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Invoice[]);
+      })) as Invoice[];
+      
+      // Sort in memory to avoid index requirement
+      setInvoices(fetchedInvoices.sort((a, b) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'invoices');
     });
 
     // Fetch items
@@ -98,6 +107,8 @@ export default function InvoiceBuilder() {
     
     getDocs(itemsQuery).then(snapshot => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Item[]);
+    }).catch(error => {
+      handleFirestoreError(error, OperationType.GET, 'items');
     });
 
     // Fetch clients
@@ -107,6 +118,8 @@ export default function InvoiceBuilder() {
     
     getDocs(clientsQuery).then(snapshot => {
       setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Client[]);
+    }).catch(error => {
+      handleFirestoreError(error, OperationType.GET, 'clients');
     });
 
     // Fetch estimates
@@ -116,6 +129,8 @@ export default function InvoiceBuilder() {
     
     getDocs(estimatesQuery).then(snapshot => {
       setEstimates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]);
+    }).catch(error => {
+      handleFirestoreError(error, OperationType.GET, 'estimates');
     });
 
     return () => unsubscribe();
@@ -204,9 +219,13 @@ export default function InvoiceBuilder() {
 
         // Increment invoice number in company settings
         if (company?.id) {
-          await updateDoc(doc(db, 'companies', company.id), {
-            invoiceNextNumber: nextNum + 1
-          });
+          try {
+            await updateDoc(doc(db, 'companies', company.id), {
+              invoiceNextNumber: nextNum + 1
+            });
+          } catch (err) {
+            handleFirestoreError(err, OperationType.UPDATE, `companies/${company.id}`);
+          }
         }
       } else {
         await updateDoc(doc(db, 'invoices', formData.id!), invoiceData);
@@ -223,6 +242,7 @@ export default function InvoiceBuilder() {
       setSelectedInvoice(savedInvoice);
       setActiveView('view');
     } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'invoices');
       console.error('Error saving invoice:', error);
       toast.error('Failed to save invoice');
     } finally {

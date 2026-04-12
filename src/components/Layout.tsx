@@ -102,7 +102,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         { id: 'inquiries', label: 'Inquiries', icon: ClipboardList },
         ...(company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients')) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
         ...(company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates')) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
-        ...(company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices')) ? [{ id: 'invoices', label: 'Invoices', icon: Receipt }] : []),
+        ...(company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices')) ? [{ id: 'accounts', label: 'Accounts', icon: Receipt }] : []),
         ...(company?.features?.includes('projects') && (isAdmin || staff?.permissions?.includes('projects')) ? [{ id: 'projects', label: 'Projects', icon: Briefcase }] : []),
         ...(company?.features?.includes('items') && (isAdmin || staff?.permissions?.includes('items')) ? [{ id: 'items', label: 'Items', icon: Package }] : []),
         ...(company?.features?.includes('reminders') && (isAdmin || staff?.permissions?.includes('reminders')) ? [{ id: 'reminders', label: 'Reminders', icon: Bell }] : []),

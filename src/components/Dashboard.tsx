@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, query, orderBy, limit, where, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Users, 
@@ -23,7 +23,6 @@ import { Client, Estimate, Reminder, Announcement } from '../types';
 import { formatCurrency, cn, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
-import { OperationType, handleFirestoreError } from '../firebase';
 import ConfirmModal from './ConfirmModal';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -93,6 +92,8 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
         return false;
       });
       setAnnouncements(filtered);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'announcements');
     });
 
     return () => unsubAnnouncements();

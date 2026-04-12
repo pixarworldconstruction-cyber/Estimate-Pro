@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
 import { GoogleGenAI } from "@google/genai";
-import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle, Smartphone, MessageCircle, Zap, Globe, Mic, MicOff, Download, Loader2 } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, MessageSquare, Calendar, History, Bell, X, FileText, CheckCircle, Clock, MinusCircle, Smartphone, MessageCircle, Zap, Globe, Mic, MicOff, Download, Loader2, Eye } from 'lucide-react';
 import { Client, CRMHistory, Reminder, Estimate } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { cn, formatCurrency, toDate } from '../lib/utils';
@@ -11,7 +11,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { OperationType, handleFirestoreError } from '../firebase';
 import { toast } from 'sonner';
 
-export default function ClientDirectory() {
+interface ClientDirectoryProps {
+  setActiveTab?: (tab: string) => void;
+  setSelectedEstimateId?: (id: string | null, mode?: 'view' | 'edit') => void;
+}
+
+export default function ClientDirectory({ setActiveTab, setSelectedEstimateId }: ClientDirectoryProps) {
   const { staff, isSuperAdmin } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
@@ -278,15 +283,10 @@ export default function ClientDirectory() {
     c.mob1.includes(search)
   );
 
-  const [whatsappModal, setWhatsappModal] = useState<{ isOpen: boolean, phone: string }>({ isOpen: false, phone: '' });
-
-  const cleanPhone = (phone: string) => phone.replace(/\D/g, '');
-  const getWhatsAppUrl = (phone: string, isBusiness: boolean = false) => {
-    const cleaned = cleanPhone(phone);
+  const handleWhatsAppClick = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
     const formatted = cleaned.length === 10 ? `91${cleaned}` : cleaned;
-    return isBusiness 
-      ? `whatsapp-business://send?phone=${formatted}`
-      : `https://wa.me/${formatted}`;
+    window.open(`https://wa.me/${formatted}`, '_blank');
   };
 
   return (
@@ -368,14 +368,14 @@ export default function ClientDirectory() {
 
             <div className="flex gap-2 mb-4">
               <a 
-                href={`tel:${cleanPhone(client.mob1)}`}
+                href={`tel:${client.mob1.replace(/\D/g, '')}`}
                 className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-all"
               >
                 <Phone className="w-3.5 h-3.5" />
                 Call
               </a>
               <button 
-                onClick={() => setWhatsappModal({ isOpen: true, phone: client.mob1 })}
+                onClick={() => handleWhatsAppClick(client.mob1)}
                 className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 text-green-600 rounded-xl text-xs font-bold hover:bg-green-100 transition-all"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
@@ -412,49 +412,6 @@ export default function ClientDirectory() {
           </div>
         ))}
       </div>
-
-      {/* WhatsApp Choice Modal */}
-      {whatsappModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-[40px] max-w-md w-full space-y-6 shadow-2xl border border-zinc-100">
-            <div className="w-20 h-20 bg-green-50 text-green-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-              <MessageCircle className="w-10 h-10" />
-            </div>
-            <div className="text-center space-y-3">
-              <h3 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">Choose WhatsApp</h3>
-              <p className="text-zinc-500 text-sm font-medium">
-                Which version of WhatsApp would you like to use?
-              </p>
-            </div>
-              <div className="grid grid-cols-1 gap-3">
-                <a 
-                  href={getWhatsAppUrl(whatsappModal.phone, false)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-lg shadow-green-600/20"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  Standard WhatsApp
-                </a>
-                <a 
-                  href={getWhatsAppUrl(whatsappModal.phone, true)}
-                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
-                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-                >
-                  <Zap className="w-5 h-5" />
-                  WhatsApp Business
-                </a>
-                <button 
-                  onClick={() => setWhatsappModal({ isOpen: false, phone: '' })}
-                  className="px-6 py-4 rounded-2xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-          </div>
-        </div>
-      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
@@ -614,14 +571,14 @@ export default function ClientDirectory() {
                 </div>
                 <div className="flex gap-3">
                   <a 
-                    href={`tel:${cleanPhone(viewingClient.mob1)}`}
+                    href={`tel:${viewingClient.mob1.replace(/\D/g, '')}`}
                     className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:scale-105 transition-all"
                   >
                     <Phone className="w-4 h-4" />
                     Call Now
                   </a>
                   <button 
-                    onClick={() => setWhatsappModal({ isOpen: true, phone: viewingClient.mob1 })}
+                    onClick={() => handleWhatsAppClick(viewingClient.mob1)}
                     className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-200 hover:scale-105 transition-all"
                   >
                     <MessageCircle className="w-4 h-4" />
@@ -761,6 +718,18 @@ export default function ClientDirectory() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              if (setSelectedEstimateId && setActiveTab) {
+                                setSelectedEstimateId(e.id, 'view');
+                                setActiveTab('estimates');
+                              }
+                            }}
+                            className="p-2 text-zinc-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                            title="View Estimate"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                           <span className={cn(
                             "px-2 py-1 rounded-lg text-[10px] font-bold uppercase",
                             e.status === 'approved' ? "bg-green-100 text-green-700" : 

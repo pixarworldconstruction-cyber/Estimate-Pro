@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
-import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, X, FileText, Mail, Filter, User, Tag, IndianRupee, Package, Calendar, CheckCircle, Bell } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, MoreVertical, Trash2, Edit2, X, FileText, Mail, Filter, User, Tag, IndianRupee, Package, Calendar, CheckCircle, Bell, UserPlus } from 'lucide-react';
 import { Inquiry, Staff } from '../types';
 import ConfirmModal from './ConfirmModal';
 import { cn } from '../lib/utils';
@@ -126,6 +126,29 @@ export default function InquiryManager() {
     } catch (error) {
       console.error('Error deleting inquiry:', error);
       toast.error('Failed to delete inquiry');
+    }
+  };
+
+  const handleSaveToDirectory = async (inquiry: Inquiry) => {
+    if (!staff?.companyId) return;
+    
+    try {
+      await addDoc(collection(db, 'clients'), {
+        name: inquiry.customerName,
+        mob1: inquiry.contactNumber,
+        siteAddress: inquiry.address || '',
+        currentAddress: '',
+        projectType: 'Turnkey',
+        projectCategory: 'Residential',
+        budget: inquiry.budget,
+        details: inquiry.notes || '',
+        companyId: staff.companyId,
+        createdAt: serverTimestamp()
+      });
+      toast.success('Contact saved to directory!');
+    } catch (error) {
+      console.error('Error saving to directory:', error);
+      toast.error('Failed to save contact');
     }
   };
 
@@ -256,6 +279,12 @@ export default function InquiryManager() {
                 </div>
                 <span className="text-sm font-bold">₹{inquiry.budget.toLocaleString()}</span>
               </div>
+
+              {inquiry.notes && (
+                <div className="mt-3 p-3 bg-zinc-50 rounded-xl text-xs text-zinc-500 italic">
+                  "{inquiry.notes}"
+                </div>
+              )}
               
               <div className="flex flex-wrap gap-2 mt-2">
                 {inquiry.estimateProvided && (
@@ -274,16 +303,25 @@ export default function InquiryManager() {
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-zinc-50">
-              <span className={cn(
-                "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                inquiry.status === 'new' ? "bg-blue-50 text-blue-600" :
-                inquiry.status === 'contacted' ? "bg-amber-50 text-amber-600" :
-                inquiry.status === 'qualified' ? "bg-indigo-50 text-indigo-600" :
-                inquiry.status === 'lost' ? "bg-red-50 text-red-600" :
-                "bg-green-50 text-green-600"
-              )}>
-                {inquiry.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                  inquiry.status === 'new' ? "bg-blue-50 text-blue-600" :
+                  inquiry.status === 'contacted' ? "bg-amber-50 text-amber-600" :
+                  inquiry.status === 'qualified' ? "bg-indigo-50 text-indigo-600" :
+                  inquiry.status === 'lost' ? "bg-red-50 text-red-600" :
+                  "bg-green-50 text-green-600"
+                )}>
+                  {inquiry.status}
+                </span>
+                <button
+                  onClick={() => handleSaveToDirectory(inquiry)}
+                  className="p-1.5 text-zinc-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                  title="Save to Client Directory"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
+              </div>
               <span className="text-[10px] text-zinc-400 font-medium">
                 {inquiry.createdAt ? format(inquiry.createdAt.toDate(), 'dd MMM yyyy') : 'Just now'}
               </span>

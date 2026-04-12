@@ -24,7 +24,7 @@ import SketchPad from './components/SketchPad';
 import BusinessInsights from './components/BusinessInsights';
 import ConstructionCalculator from './components/ConstructionCalculator';
 import ProjectManagement from './components/ProjectManagement';
-import InvoiceBuilder from './components/InvoiceBuilder';
+import Accounts from './components/Accounts';
 import LandingPage from './components/LandingPage';
 import ContactUs from './components/ContactUs';
 import SubscriptionPage from './components/SubscriptionPage';
@@ -101,7 +101,7 @@ function AppContent() {
       case 'dashboard':
         return <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'clients':
-        return <ClientDirectory />;
+        return <ClientDirectory setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'inquiries':
         return <InquiryManager />;
       case 'estimates':
@@ -122,8 +122,8 @@ function AppContent() {
         return <ConstructionCalculator />;
       case 'projects':
         return <ProjectManagement />;
-      case 'invoices':
-        return <InvoiceBuilder />;
+      case 'accounts':
+        return <Accounts />;
       case 'admin':
         return <AdminPanel setActiveTab={setActiveTab} />;
       case 'subscription':
