@@ -228,30 +228,42 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       createdByName: staff.name,
     };
 
-    if (selectedEstimate) {
-      if (formData.status === 'revision') {
-        dataToSave.revisions = (selectedEstimate.revisions || 0) + 1;
-      }
-      await updateDoc(doc(db, 'estimates', selectedEstimate.id), dataToSave);
-      const updatedEstimate = { ...dataToSave, id: selectedEstimate.id } as Estimate;
-      setSelectedEstimate(updatedEstimate);
-      setFormData(updatedEstimate);
-    } else {
-      dataToSave.createdAt = serverTimestamp();
-      dataToSave.revisions = 0;
-      const docRef = await addDoc(collection(db, 'estimates'), dataToSave);
-      
-      // Increment usedEstimates count in company document
-      await updateDoc(doc(db, 'companies', staff.companyId), {
-        usedEstimates: increment(1),
-        estimateNextNumber: increment(1)
-      });
+    try {
+      if (selectedEstimate) {
+        if (formData.status === 'revision') {
+          dataToSave.revisions = (selectedEstimate.revisions || 0) + 1;
+        }
+        await updateDoc(doc(db, 'estimates', selectedEstimate.id), dataToSave);
+        const updatedEstimate = { ...dataToSave, id: selectedEstimate.id } as Estimate;
+        setSelectedEstimate(updatedEstimate);
+        setFormData(updatedEstimate);
+        toast.success('Estimate updated successfully');
+      } else {
+        if (!formData.clientId) {
+          toast.error('Please select a client first');
+          return;
+        }
+        dataToSave.createdAt = serverTimestamp();
+        dataToSave.revisions = 0;
+        const docRef = await addDoc(collection(db, 'estimates'), dataToSave);
+        
+        // Increment usedEstimates count in company document
+        await updateDoc(doc(db, 'companies', staff.companyId), {
+          usedEstimates: increment(1),
+          estimateNextNumber: increment(1)
+        });
 
-      const newEstimate = { ...dataToSave, id: docRef.id, createdAt: { toDate: () => new Date() } } as any;
-      setSelectedEstimate(newEstimate);
-      setFormData(newEstimate);
+        const newEstimate = { ...dataToSave, id: docRef.id, createdAt: { toDate: () => new Date() } } as any;
+        setSelectedEstimate(newEstimate);
+        setFormData(newEstimate);
+        toast.success('Estimate created successfully');
+      }
+      setIsPreviewMode(true);
+    } catch (error) {
+      console.error('Error saving estimate:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'estimates');
+      toast.error('Failed to save estimate. Please check your connection.');
     }
-    setIsPreviewMode(true);
   };
 
   const [estimateToPrint, setEstimateToPrint] = useState<Estimate | null>(null);
@@ -288,9 +300,15 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
 
   const generateCanvas = async () => {
     const element = pdfRef.current;
-    if (!element) return null;
+    if (!element) {
+      console.error('pdfRef.current is null');
+      return null;
+    }
     
     try {
+      // Ensure element is ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Wait for images to load
       const images = element.querySelectorAll('img');
       await Promise.all(Array.from(images).map(img => {
@@ -307,12 +325,22 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
       const canvas = await html2canvas(element, { 
         scale: 2,
         useCORS: true,
-        allowTaint: false, // Changed to false to prevent tainted canvas
-        logging: false,
+        allowTaint: true, // Allow taint to handle cross-origin images if CORS fails
+        logging: true, // Enable logging for debugging
         backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
+        windowWidth: 210 * 3.78, // A4 width in px (approx)
         windowHeight: element.scrollHeight,
         onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.querySelector('[data-pdf-content]');
+          if (clonedElement instanceof HTMLElement) {
+            clonedElement.style.position = 'relative';
+            clonedElement.style.left = '0';
+            clonedElement.style.top = '0';
+            clonedElement.style.margin = '0';
+            clonedElement.style.display = 'block';
+            clonedElement.style.visibility = 'visible';
+          }
+
           // Fix for html2canvas not supporting oklch colors (Tailwind v4)
           const allElements = clonedDoc.getElementsByTagName('*');
           for (let i = 0; i < allElements.length; i++) {
@@ -326,6 +354,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
               if (val && val.includes('oklch')) {
                 // Force standard colors for common Tailwind classes
                 if (el.classList.contains('bg-primary')) el.style.backgroundColor = '#10b981';
+                else if (el.classList.contains('text-primary')) el.style.color = '#10b981';
                 else if (el.classList.contains('bg-zinc-900')) el.style.backgroundColor = '#18181b';
                 else if (el.classList.contains('bg-zinc-50')) el.style.backgroundColor = '#f8fafc';
                 else if (el.classList.contains('text-zinc-900')) el.style.color = '#18181b';
@@ -335,25 +364,11 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                 else {
                   // Generic fallback if we can't match a class
                   if (prop === 'color') el.style.color = '#18181b';
-                  else if (prop === 'backgroundColor') el.style.backgroundColor = '#ffffff';
+                  else if (prop === 'backgroundColor' && val !== 'rgba(0, 0, 0, 0)') el.style.backgroundColor = '#ffffff';
                   else if (prop === 'borderColor') el.style.borderColor = '#e4e4e7';
                 }
               }
             });
-          }
-
-          const clonedElement = clonedDoc.querySelector('[data-pdf-content]');
-          if (clonedElement instanceof HTMLElement) {
-            clonedElement.style.display = 'block';
-            clonedElement.style.visibility = 'visible';
-            clonedElement.style.position = 'relative';
-            clonedElement.style.left = '0';
-            clonedElement.style.top = '0';
-            clonedElement.style.margin = '0';
-            clonedElement.style.padding = '20mm';
-            clonedElement.style.width = '210mm';
-            clonedElement.style.height = 'auto';
-            clonedElement.style.minHeight = '297mm';
           }
         }
       });
@@ -1036,8 +1051,8 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                           <th className="border border-zinc-900 p-2 text-left w-12">Sr.</th>
                           <th className="border border-zinc-900 p-2 text-left">Item Name</th>
                           <th className="border border-zinc-900 p-2 text-center w-20">L x W</th>
-                          <th className="border border-zinc-900 p-2 text-center w-20">Area</th>
                           <th className="border border-zinc-900 p-2 text-center w-16">Unit</th>
+                          <th className="border border-zinc-900 p-2 text-center w-20">Area</th>
                           <th className="border border-zinc-900 p-2 text-center w-20">Rate</th>
                           <th className="border border-zinc-900 p-2 text-center w-16">Qty.</th>
                           <th className="border border-zinc-900 p-2 text-right w-24">Total</th>
@@ -1051,10 +1066,10 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                             <td className="border border-zinc-900 p-2 text-center">
                               {item.length && item.width ? `${item.length} x ${item.width}` : '-'}
                             </td>
-                            <td className="border border-zinc-900 p-2 text-center">
+                            <td className="border border-zinc-900 p-2 text-center uppercase">{item.unit}</td>
+                            <td className="border border-zinc-900 p-2 text-center font-bold">
                               {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
                             </td>
-                            <td className="border border-zinc-900 p-2 text-center uppercase">{item.unit}</td>
                             <td className="border border-zinc-900 p-2 text-center">₹{item.price}</td>
                             <td className="border border-zinc-900 p-2 text-center">{item.qty}</td>
                             <td className="border border-zinc-900 p-2 text-right font-bold">₹{item.total?.toLocaleString('en-IN')}</td>
@@ -1128,7 +1143,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                             }));
                           }
                         }}
-                        className="text-xs border border-zinc-200 rounded-lg px-3 py-1.5 outline-none focus:border-primary transition-all font-medium bg-zinc-50 min-w-[200px]"
+                        className="text-sm border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-primary transition-all font-medium bg-zinc-50 w-full md:min-w-[250px]"
                         value={formData.clientId || ''}
                       >
                         <option value="">-- Select from Directory --</option>
@@ -1342,6 +1357,7 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                         <th className="px-6 py-4">L / H</th>
                         <th className="px-6 py-4">W / D</th>
                         <th className="px-6 py-4">Unit</th>
+                        <th className="px-6 py-4">Area</th>
                         <th className="px-6 py-4">GST%</th>
                         <th className="px-6 py-4">Price</th>
                         <th className="px-6 py-4">QTY.</th>
@@ -1387,6 +1403,9 @@ export default function EstimateBuilder({ initialEstimateId, initialMode, onClea
                               <option value="in">in</option>
                               <option value="Unit">Unit</option>
                             </select>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-zinc-900">
+                            {item.length && item.width ? (item.length * item.width).toFixed(2) : '-'}
                           </td>
                           <td className="px-6 py-4">
                             <input

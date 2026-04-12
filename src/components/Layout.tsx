@@ -29,11 +29,13 @@ import {
   PlusCircle,
   Smartphone,
   AlertTriangle,
-  Clock
+  Clock,
+  ClipboardList
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { cn, toDate } from '../lib/utils';
+import { toast } from 'sonner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -96,7 +98,8 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         { id: 'super-admin', label: 'Super Admin', icon: ShieldCheck },
       ]
     : [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        ...(company?.features?.includes('dashboard') || true ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
+        { id: 'inquiries', label: 'Inquiries', icon: ClipboardList },
         ...(company?.features?.includes('clients') && (isAdmin || staff?.permissions?.includes('clients')) ? [{ id: 'clients', label: 'Clients', icon: Users }] : []),
         ...(company?.features?.includes('estimates') && (isAdmin || staff?.permissions?.includes('estimates')) ? [{ id: 'estimates', label: 'Estimates', icon: FileText }] : []),
         ...(company?.features?.includes('invoices') && (isAdmin || staff?.permissions?.includes('invoices')) ? [{ id: 'invoices', label: 'Invoices', icon: Receipt }] : []),

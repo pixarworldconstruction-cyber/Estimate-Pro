@@ -97,6 +97,39 @@
       },
       "required": ["clientId", "type", "timestamp"]
     },
+    "inquiry": {
+      "title": "Inquiry",
+      "description": "Customer inquiries and leads.",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "emailId": { "type": "string" },
+        "address": { "type": "string" },
+        "source": { "type": "string" },
+        "productInterested": { "type": "string" },
+        "budget": { "type": "number" },
+        "status": { "type": "string", "enum": ["new", "contacted", "qualified", "lost", "converted"] },
+        "estimateProvided": { "type": "boolean" },
+        "contactDataAccess": { "type": "boolean" },
+        "assignedTo": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["customerName", "contactNumber"]
+    },
+    "announcement": {
+      "title": "Announcement",
+      "description": "System-wide announcements from super admin.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["all", "selected", "individual"] },
+        "targetCompanyIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "targetType"]
+    },
     "paymentSettings": {
       "title": "Payment Settings",
       "description": "Configuration for payment methods including Razorpay and UPI.",
@@ -141,6 +174,8 @@
     "items": { "schema": "item", "description": "Item catalog" },
     "estimates": { "schema": "estimate", "description": "Project estimates" },
     "reminders": { "schema": "reminder", "description": "Client follow-ups" },
-    "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" }
+    "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" },
+    "inquiries": { "schema": "inquiry", "description": "Customer inquiries" },
+    "announcements": { "schema": "announcement", "description": "Super admin announcements" }
   }
 }

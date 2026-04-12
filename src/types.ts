@@ -238,6 +238,36 @@ export interface CRMHistory {
   timestamp: any;
 }
 
+export interface Inquiry {
+  id: string;
+  companyId: string;
+  source: string;
+  productInterested: string;
+  budget: number;
+  inquiryDate: string;
+  customerName: string;
+  address: string;
+  contactNumber: string;
+  emailId: string;
+  status: 'new' | 'contacted' | 'qualified' | 'lost' | 'converted';
+  notes?: string;
+  assignedTo?: string;
+  estimateProvided?: boolean;
+  contactDataAccess?: boolean;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  targetType: 'all' | 'selected' | 'individual';
+  targetCompanyIds?: string[]; // List of company IDs for 'selected' or 'individual'
+  createdAt: any;
+  createdBy: string;
+}
+
 export interface LandingPageContent {
   hero: {
     title: string;

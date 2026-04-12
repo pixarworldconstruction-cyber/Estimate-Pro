@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, quer
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt, X, Monitor, MessageCircle, Phone } from 'lucide-react';
+import { Plus, Trash2, Building2, Users, Shield, Mail, Lock, Calendar, CheckSquare, Zap, UserPlus, Globe, MessageSquare, Save, Image as ImageIcon, Layout as LayoutIcon, FileText as FileIcon, ShieldAlert, Package, Check, CreditCard, Smartphone, Upload, Info, BarChart as BarChartIcon, TrendingUp, Clock, DollarSign, Receipt, X, Monitor, MessageCircle, Phone, Bell } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Company, Staff, LandingPageContent, SupportContent, PricingPackage, PaymentSettings, Estimate, Invoice } from '../types';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -43,12 +43,19 @@ const AVAILABLE_FEATURES = [
 
 export default function SuperAdminPanel() {
   const { isSuperAdmin, cleanupExpiredAccounts } = useAuth();
-  const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments' | 'analytics'>('companies');
+  const [activeView, setActiveView] = useState<'companies' | 'content' | 'packages' | 'payments' | 'analytics' | 'announcements'>('companies');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
   const [allEstimates, setAllEstimates] = useState<Estimate[]>([]);
   const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [packages, setPackages] = useState<PricingPackage[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '',
+    message: '',
+    targetType: 'all' as 'all' | 'selected' | 'individual',
+    targetCompanyIds: [] as string[]
+  });
   const [newPackage, setNewPackage] = useState<Partial<PricingPackage>>({
     name: '',
     price: 0,
@@ -142,6 +149,10 @@ export default function SuperAdminPanel() {
       setAllInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
     });
 
+    const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
+      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)).sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+    });
+
     return () => {
       unsubscribe();
       unsubLanding();
@@ -151,6 +162,7 @@ export default function SuperAdminPanel() {
       unsubStaff();
       unsubEstimates();
       unsubInvoices();
+      unsubAnnouncements();
     };
   }, [isSuperAdmin]);
 
@@ -419,6 +431,40 @@ export default function SuperAdminPanel() {
       : `https://wa.me/${formatted}`;
   };
 
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnnouncement.title || !newAnnouncement.message) return;
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'announcements'), {
+        ...newAnnouncement,
+        createdAt: Timestamp.now(),
+        createdBy: 'Super Admin'
+      });
+      setNewAnnouncement({
+        title: '',
+        message: '',
+        targetType: 'all',
+        targetCompanyIds: []
+      });
+      toast.success('Announcement sent successfully!');
+    } catch (err: any) {
+      toast.error('Failed to send announcement');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+      toast.success('Announcement deleted');
+    } catch (err: any) {
+      toast.error('Failed to delete announcement');
+    }
+  };
+
   if (!isSuperAdmin) return <div className="p-8 text-center text-red-500 font-bold">Access Denied</div>;
 
   return (
@@ -475,8 +521,138 @@ export default function SuperAdminPanel() {
           <BarChartIcon className="w-4 h-4" />
           Analytics
         </button>
+        <button
+          onClick={() => setActiveView('announcements')}
+          className={cn(
+            "px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2",
+            activeView === 'announcements' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-zinc-500 hover:bg-zinc-50"
+          )}
+        >
+          <Bell className="w-4 h-4" />
+          Announcements
+        </button>
       </div>
 
+      {activeView === 'announcements' && (
+        <div className="space-y-8">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+            <h2 className="text-2xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
+              <Bell className="text-primary" />
+              Create New Announcement
+            </h2>
+            <form onSubmit={handleCreateAnnouncement} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Announcement Title</label>
+                <input
+                  type="text"
+                  required
+                  value={newAnnouncement.title}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  placeholder="e.g. System Maintenance"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-zinc-700">Message</label>
+                <textarea
+                  required
+                  value={newAnnouncement.message}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary h-32"
+                  placeholder="Enter your message here..."
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-700">Target Audience</label>
+                  <select
+                    value={newAnnouncement.targetType}
+                    onChange={e => setNewAnnouncement({ ...newAnnouncement, targetType: e.target.value as any, targetCompanyIds: [] })}
+                    className="w-full px-4 py-2 rounded-xl border border-zinc-200 outline-none focus:border-primary"
+                  >
+                    <option value="all">All Companies</option>
+                    <option value="selected">Selected Companies</option>
+                    <option value="individual">Individual Company</option>
+                  </select>
+                </div>
+                
+                {(newAnnouncement.targetType === 'selected' || newAnnouncement.targetType === 'individual') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700">
+                      {newAnnouncement.targetType === 'individual' ? 'Select Company' : 'Select Companies'}
+                    </label>
+                    <div className="max-h-40 overflow-y-auto border border-zinc-200 rounded-xl p-2 space-y-1">
+                      {companies.map(company => (
+                        <label key={company.id} className="flex items-center gap-2 p-2 hover:bg-zinc-50 rounded-lg cursor-pointer">
+                          <input
+                            type={newAnnouncement.targetType === 'individual' ? 'radio' : 'checkbox'}
+                            name="targetCompanies"
+                            checked={newAnnouncement.targetCompanyIds.includes(company.id)}
+                            onChange={e => {
+                              if (newAnnouncement.targetType === 'individual') {
+                                setNewAnnouncement({ ...newAnnouncement, targetCompanyIds: [company.id] });
+                              } else {
+                                const ids = e.target.checked 
+                                  ? [...newAnnouncement.targetCompanyIds, company.id]
+                                  : newAnnouncement.targetCompanyIds.filter(id => id !== company.id);
+                                setNewAnnouncement({ ...newAnnouncement, targetCompanyIds: ids });
+                              }
+                            }}
+                            className="w-4 h-4 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm text-zinc-700">{company.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send Announcement'}
+              </button>
+            </form>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-zinc-900">Recent Announcements</h3>
+            <div className="grid grid-cols-1 gap-4">
+              {announcements.map(ann => (
+                <div key={ann.id} className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold text-zinc-900">{ann.title}</h4>
+                    <p className="text-zinc-600 mt-1 whitespace-pre-wrap">{ann.message}</p>
+                    <div className="flex items-center gap-4 mt-4 text-xs text-zinc-400">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        Target: {ann.targetType === 'all' ? 'All' : `${ann.targetCompanyIds?.length || 0} Companies`}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {ann.createdAt ? format(ann.createdAt.toDate(), 'dd MMM yyyy HH:mm') : 'Just now'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteAnnouncement(ann.id)}
+                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+              {announcements.length === 0 && (
+                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-zinc-200">
+                  <p className="text-zinc-500">No announcements sent yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {activeView === 'analytics' && (
         <div className="space-y-8">
           {/* Stats Overview */}

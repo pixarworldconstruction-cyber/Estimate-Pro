@@ -17,9 +17,9 @@ import {
   Eye,
   Pencil,
   Trash2,
-  DollarSign
+  X
 } from 'lucide-react';
-import { Client, Estimate, Reminder } from '../types';
+import { Client, Estimate, Reminder, Announcement } from '../types';
 import { formatCurrency, cn, toDate } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -64,6 +64,39 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
   const [upcomingReminders, setUpcomingReminders] = useState<Reminder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [estimateToDelete, setEstimateToDelete] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dismissed_announcements');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const dismissAnnouncement = (id: string) => {
+    const updated = [...dismissedAnnouncements, id];
+    setDismissedAnnouncements(updated);
+    localStorage.setItem('dismissed_announcements', JSON.stringify(updated));
+  };
+
+  useEffect(() => {
+    if (!staff?.companyId && !isSuperAdmin) return;
+
+    const announcementsQuery = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+    const unsubAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
+      const allAnnouncements = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
+      
+      // Filter based on target
+      const filtered = allAnnouncements.filter(ann => {
+        if (isSuperAdmin) return true;
+        if (ann.targetType === 'all') return true;
+        if (ann.targetType === 'selected' || ann.targetType === 'individual') {
+          return ann.targetCompanyIds?.includes(staff?.companyId || '');
+        }
+        return false;
+      });
+      setAnnouncements(filtered);
+    });
+
+    return () => unsubAnnouncements();
+  }, [staff, isSuperAdmin]);
 
   useEffect(() => {
     if (!staff) return;
@@ -175,6 +208,44 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
 
   return (
     <div className="space-y-10">
+      {/* Announcements Section */}
+      {announcements.filter(a => !dismissedAnnouncements.includes(a.id)).length > 0 && (
+        <div className="space-y-4">
+          {announcements.filter(a => !dismissedAnnouncements.includes(a.id)).map(ann => (
+            <motion.div
+              key={ann.id}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-primary/5 border border-primary/20 p-6 rounded-3xl relative overflow-hidden group"
+            >
+              <button
+                onClick={() => dismissAnnouncement(ann.id)}
+                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-900 hover:bg-white rounded-xl transition-all z-10"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
+                <Bell className="w-12 h-12 text-primary" />
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-zinc-900 text-lg">{ann.title}</h3>
+                  <p className="text-zinc-600 mt-1 whitespace-pre-wrap">{ann.message}</p>
+                  <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-3">
+                    {ann.createdAt ? format(toDate(ann.createdAt), 'dd MMM yyyy HH:mm') : 'Just now'}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

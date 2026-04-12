@@ -13,6 +13,7 @@ import ClientDirectory from './components/ClientDirectory';
 import EstimateBuilder from './components/EstimateBuilder';
 import ItemCatalog from './components/ItemCatalog';
 import Reminders from './components/Reminders';
+import InquiryManager from './components/InquiryManager';
 import AdminPanel from './components/AdminPanel';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import Profile from './components/Profile';
@@ -101,6 +102,8 @@ function AppContent() {
         return <Dashboard setActiveTab={setActiveTab} setSelectedEstimateId={(id, mode) => setSelectedEstimate(id ? { id, mode: mode || 'edit' } : null)} />;
       case 'clients':
         return <ClientDirectory />;
+      case 'inquiries':
+        return <InquiryManager />;
       case 'estimates':
         return <EstimateBuilder initialEstimateId={selectedEstimate?.id} initialMode={selectedEstimate?.mode} onClearInitialId={() => setSelectedEstimate(null)} />;
       case 'items':
