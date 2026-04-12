@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import InvoiceBuilder from './InvoiceBuilder';
+import PaymentReceiptManager from './PaymentReceiptManager';
+import CustomerManager from './CustomerManager';
 
 type MainTab = 'sale' | 'purchase' | 'accountant';
 
@@ -28,6 +30,7 @@ export default function Accounts() {
   const [activeSubView, setActiveSubView] = useState<string>('Invoice');
 
   const saleItems = [
+    { name: 'Customer', icon: Users },
     { name: 'Sales order', icon: ShoppingBag },
     { name: 'Invoice', icon: FileText },
     { name: 'Recurring Invoice', icon: Repeat },
@@ -53,8 +56,10 @@ export default function Accounts() {
   ];
 
   const renderSubContent = () => {
-    if (activeMainTab === 'sale' && activeSubView === 'Invoice') {
-      return <InvoiceBuilder />;
+    if (activeMainTab === 'sale') {
+      if (activeSubView === 'Customer') return <CustomerManager />;
+      if (activeSubView === 'Invoice') return <InvoiceBuilder />;
+      if (activeSubView === 'Payment Received') return <PaymentReceiptManager />;
     }
 
     return (

@@ -82,8 +82,14 @@ export default function Dashboard({ setActiveTab, setSelectedEstimateId }: {
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
       const allAnnouncements = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
       
-      // Filter based on target
+      // Filter based on target and time (48 hours)
+      const now = new Date().getTime();
+      const fortyEightHours = 48 * 60 * 60 * 1000;
+
       const filtered = allAnnouncements.filter(ann => {
+        const createdTime = toDate(ann.createdAt).getTime();
+        if (now - createdTime > fortyEightHours) return false;
+
         if (isSuperAdmin) return true;
         if (ann.targetType === 'all') return true;
         if (ann.targetType === 'selected' || ann.targetType === 'individual') {

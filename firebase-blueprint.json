@@ -163,6 +163,21 @@
         "description": { "type": "string" }
       },
       "required": ["name", "price", "period", "type"]
+    },
+    "paymentReceipt": {
+      "title": "Payment Receipt",
+      "description": "Receipts for payments received from clients.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentDate": { "type": "string", "format": "date" },
+        "paymentMode": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "amount", "paymentDate", "receiptNumber"]
     }
   },
   "firestore": {
@@ -176,6 +191,7 @@
     "reminders": { "schema": "reminder", "description": "Client follow-ups" },
     "crmHistory": { "schema": "crmHistory", "description": "Interaction logs" },
     "inquiries": { "schema": "inquiry", "description": "Customer inquiries" },
-    "announcements": { "schema": "announcement", "description": "Super admin announcements" }
+    "announcements": { "schema": "announcement", "description": "Super admin announcements" },
+    "paymentReceipts": { "schema": "paymentReceipt", "description": "Client payment receipts" }
   }
 }

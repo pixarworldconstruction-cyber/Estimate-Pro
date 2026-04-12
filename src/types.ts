@@ -42,6 +42,8 @@ export interface Company {
   estimateNextNumber?: number;
   invoicePrefix?: string;
   invoiceNextNumber?: number;
+  paymentReceiptPrefix?: string;
+  paymentReceiptNextNumber?: number;
 }
 
 export interface PricingPackage {
@@ -266,6 +268,25 @@ export interface Announcement {
   targetCompanyIds?: string[]; // List of company IDs for 'selected' or 'individual'
   createdAt: any;
   createdBy: string;
+}
+
+export interface PaymentReceipt {
+  id: string;
+  companyId: string;
+  clientId: string;
+  clientName: string;
+  clientAddress: string;
+  amount: number;
+  amountInWords: string;
+  paymentDate: string;
+  referenceNumber: string;
+  paymentMode: string;
+  authorizedBy: string;
+  receiptNumber: string;
+  invoiceId?: string;
+  estimateId?: string;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export interface LandingPageContent {
